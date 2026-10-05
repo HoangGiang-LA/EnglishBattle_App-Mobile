@@ -1,5 +1,5 @@
 Báo cáo Dự án: Ứng dụng Quản lý Rạp chiếu phim (Cine4u - Cinema Management System)
-1. Mô tả ngắn gọn về Dự án
+1. Mô tả ngắn gọn về Dự án: 
 Dự án này tập trung vào việc phân tích và thiết kế kiến trúc tổng thể cho một hệ thống vận hành rạp chiếu phim (tương tự mô hình CGV, Lotte). Thay vì chỉ dừng ở lớp giao diện (Front-end), bài toán đặt ra là xây dựng bộ khung logic (Back-end) và cơ sở dữ liệu vững chắc để xử lý luồng dữ liệu phức tạp giữa Khách hàng (đặt vé, thanh toán trực tuyến) và Quản trị viên (quản lý lịch chiếu, soát vé, đối soát doanh thu), đảm bảo tính toàn vẹn dữ liệu và hiệu năng cao.
 
 2. Mục tiêu và Kết quả đạt được
