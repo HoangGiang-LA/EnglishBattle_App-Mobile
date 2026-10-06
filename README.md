@@ -108,12 +108,12 @@ Hệ thống được xây dựng theo mô hình **Client – REST API – Datab
 │        Backend API            │
 │       Java Spring Boot        │
 │                               │
-│ Authentication               │
-│ Booking Management           │
-│ Seat Locking                 │
-│ Showtime Management          │
-│ Payment Processing           │
-│ Ticket & QR Validation       │
+│ Authentication                │
+│ Booking Management            │
+│ Seat Locking                  │
+│ Showtime Management           │
+│ Payment Processing            │
+│ Ticket & QR Validation        │
 └───────────────┬───────────────┘
                 │
        ┌────────┴─────────┐
