@@ -1,133 +1,98 @@
-# 🎬 Cinema Management System
+<div align="center">
 
-> A comprehensive cinema ticket booking and theater management solution.
+# 🏆 ENGLISH BATTLE
+### English Learning & Competitive Quiz Application
 
-Hệ thống quản lý và đặt vé rạp chiếu phim trực tuyến, hỗ trợ khách hàng đặt vé nhanh chóng, lựa chọn ghế theo thời gian thực, thanh toán trực tuyến và sử dụng vé điện tử QR.
+**Learn English • Practice Skills • Challenge Friends • Earn Rewards**
 
-Hệ thống được xây dựng với hai ứng dụng di động chính:
+![Android](https://img.shields.io/badge/Platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Language-Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
+![Figma](https://img.shields.io/badge/Design-Figma-F24E1E?style=for-the-badge&logo=figma&logoColor=white)
+![Status](https://img.shields.io/badge/Status-In%20Development-orange?style=for-the-badge)
 
-- 🎟️ **Customer App** – Ứng dụng dành cho khách hàng đặt vé và quản lý tài khoản.
-- 🏢 **Admin/Staff App** – Ứng dụng dành cho quản lý và nhân viên vận hành rạp.
+**Ứng dụng học tiếng Anh thông minh kết hợp luyện tập, trò chơi, thử thách và thi đấu trực tuyến.**
 
-Backend cung cấp RESTful API, xử lý xác thực, đặt vé, khóa ghế, thanh toán, quản lý lịch chiếu, doanh thu và dữ liệu người dùng.
-
----
-
-## 📌 Project Overview
-
-### 🎯 Objectives
-
-- Xây dựng hệ thống đặt vé xem phim trực tuyến với cơ chế **Real-time Seat Locking**.
-- Ngăn chặn tình trạng **trùng ghế** khi nhiều khách hàng cùng đặt vé.
-- Cung cấp giao diện Mobile App trực quan và dễ sử dụng.
-- Hỗ trợ **Dark Mode** cho Customer App.
-- Hỗ trợ **Light Mode & Card-based UI** cho Admin/Staff App.
-- Quản lý phim, phòng chiếu, lịch chiếu, ghế ngồi và vé.
-- Hỗ trợ vé điện tử **QR Code** để xác thực tại rạp.
-- Theo dõi doanh thu và tỷ lệ lấp đầy phòng chiếu.
-- Quản lý khách hàng, nhân viên và hệ thống thành viên.
+</div>
 
 ---
 
-## ✨ Key Features
+## 📑 Table of Contents
 
-### 🎟️ Customer App
+1. [Project Overview](#-1-project-overview)
+2. [Project Objectives](#-2-project-objectives)
+3. [Technology Stack](#-3-technology-stack)
+4. [UI/UX Design Overview](#-4-uiux-design-overview)
+5. [User Application Features](#-5-user-application-features)
+6. [Admin Panel Features](#-6-admin-panel-features)
+7. [System Architecture](#-7-system-architecture)
+8. [Application Workflow](#-8-application-workflow)
+9. [Database Design](#-9-database-design)
+10. [Project Structure](#-10-project-structure)
+11. [Installation & Setup](#-11-installation--setup)
+12. [UI/UX Design Guidelines](#-12-uiux-design-guidelines)
+13. [Testing & Quality Assurance](#-13-testing--quality-assurance)
+14. [Development Roadmap](#-14-development-roadmap)
+15. [Development Team](#-15-development-team)
+16. [Future Improvements](#-16-future-improvements)
+17. [License](#-17-license)
 
-| Feature | Description |
+---
+
+# 📌 1. Project Overview
+
+## 1.1. Introduction
+
+**English Battle** là dự án phát triển ứng dụng học tiếng Anh trên nền tảng Android, kết hợp phương pháp học tập truyền thống với các yếu tố trò chơi hóa (Gamification).
+
+Ứng dụng hướng đến việc xây dựng một môi trường học tiếng Anh trực quan, sinh động và có tính tương tác cao.
+
+Thay vì chỉ học lý thuyết, người dùng có thể luyện tập kiến thức, tham gia thử thách hằng ngày, thi đấu với người chơi khác và nhận phần thưởng dựa trên kết quả học tập.
+
+Hệ thống được định hướng xây dựng trên hai thành phần chính:
+
+- **User Application:** Ứng dụng Android dành cho người học.
+- **Admin Panel:** Hệ thống quản trị dành cho quản trị viên.
+
+Bộ thiết kế Figma hiện bao gồm **30 màn hình**, được chia thành:
+
+- **25 màn hình User Application**
+- **5 màn hình Admin Panel**
+
+## 1.2. Project Information
+
+| Information | Description |
 |---|---|
-| 🔐 Authentication | Đăng ký, đăng nhập và quản lý tài khoản |
-| 🎬 Movie Discovery | Xem phim đang chiếu và phim sắp chiếu |
-| 🎞️ Movie Details | Xem thông tin phim, trailer, thể loại và độ tuổi |
-| 🕐 Showtime | Xem lịch chiếu theo phim và rạp |
-| 💺 Seat Selection | Chọn ghế trực quan theo sơ đồ phòng chiếu |
-| 🔒 Seat Locking | Khóa ghế tạm thời trong quá trình đặt vé |
-| 🍿 Food & Beverage | Đặt bắp nước và các sản phẩm đi kèm |
-| 💳 Online Payment | Thanh toán đơn hàng trực tuyến |
-| 🎫 E-Ticket | Nhận vé điện tử sau khi thanh toán |
-| 📱 QR Ticket | Sử dụng QR Code để xác thực vé |
-| ⭐ Membership | Tích lũy và sử dụng điểm thành viên |
-| 📜 Booking History | Xem lịch sử đặt vé và giao dịch |
-| 🔔 Notifications | Nhận thông báo về vé và giao dịch |
-
----
-
-### 🏢 Admin / Staff App
-
-| Feature | Description |
-|---|---|
-| 📊 Dashboard | Theo dõi doanh thu và hoạt động hệ thống |
-| 🎫 Ticket Management | Quản lý vé và trạng thái đặt vé |
-| 📱 QR Scanner | Quét và xác thực vé điện tử |
-| 🎬 Movie Management | Quản lý danh sách phim |
-| 🕐 Showtime Management | Tạo và quản lý lịch chiếu |
-| 🏠 Cinema Management | Quản lý phòng chiếu |
-| 💺 Seat Management | Quản lý sơ đồ và trạng thái ghế |
-| 📦 Inventory | Quản lý sản phẩm bắp nước |
-| 👥 Customer Management | Tra cứu và quản lý khách hàng |
-| 👨‍💼 Staff Management | Quản lý nhân viên và ca làm việc |
-| 💰 Revenue Analytics | Theo dõi doanh thu theo phim và thời gian |
-| 📈 Occupancy Rate | Theo dõi tỷ lệ lấp đầy phòng chiếu |
-
----
-
-## 💻 Tech Stack
-
-| Component | Technology |
-|---|---|
-| Backend | Java Spring Boot |
-| Database | MongoDB Atlas |
-| Authentication | JWT |
-| Cloud Storage | Cloudinary |
-| Customer Mobile | React Native / Flutter |
-| Admin Mobile | React Native / Flutter |
+| Project Name | English Battle |
+| Project Type | English Learning Application |
+| Platform | Android & Web Admin |
+| Programming Language | Kotlin |
+| Development IDE | Android Studio |
 | UI/UX Design | Figma |
-| API Testing | Postman |
-| API Documentation | Swagger / OpenAPI |
-| Version Control | Git & GitHub |
-| Development Tools | IntelliJ IDEA / VS Code / Android Studio |
-| Database Testing | MongoDB Compass |
-| Mobile Testing | Android Emulator / Physical Device |
+| Application Category | Education / Gamification |
+| Target Users | English Learners |
+| Development Status | In Development |
 
-> **Note:** Framework Mobile sẽ được xác định chính thức trong quá trình phát triển dự án.
+> **Note:** README mô tả chức năng theo bản thiết kế Figma và định hướng triển khai. Những tính năng chưa được lập trình hoặc tích hợp backend cần được cập nhật trạng thái sau khi phát triển.
 
 ---
 
-# 🧱 System Architecture
+# 🎯 2. Project Objectives
 
-Hệ thống được xây dựng theo mô hình **Client – REST API – Database**.
+## 2.1. Main Objectives
 
-```text
-┌───────────────────────────────┐
-│        Customer App           │
-│       Mobile Application      │
-└───────────────┬───────────────┘
-                │
-                │ REST API / JSON
-                ▼
-┌───────────────────────────────┐
-│        Backend API            │
-│       Java Spring Boot        │
-│                               │
-│ Authentication                │
-│ Booking Management            │
-│ Seat Locking                  │
-│ Showtime Management           │
-│ Payment Processing            │
-│ Ticket & QR Validation        │
-└───────────────┬───────────────┘
-                │
-       ┌────────┴─────────┐
-       │                  │
-       ▼                  ▼
-┌──────────────┐   ┌──────────────┐
-│ MongoDB Atlas│   │  Cloudinary  │
-│   Database   │   │ Image/Media  │
-└──────────────┘   └──────────────┘
-                ▲
-                │
-         REST API / JSON
-                │
-┌───────────────┴───────────────┐
-│        Admin / Staff App      │
-│       Mobile Application      │
-└───────────────────────────────┘
+Mục tiêu chính của English Battle là xây dựng một ứng dụng học tiếng Anh hiện đại, dễ sử dụng và tạo động lực học tập thông qua các hoạt động tương tác.
+
+### Educational Objectives
+
+- Hỗ trợ người dùng nâng cao trình độ tiếng Anh.
+- Phát triển kiến thức từ vựng và ngữ pháp.
+- Rèn luyện kỹ năng nghe và đọc hiểu.
+- Tổ chức bài luyện tập theo nhiều chủ đề.
+- Theo dõi kết quả và sự tiến bộ của người học.
+
+### Gamification Objectives
+
+- Khuyến khích học tập thường xuyên.
+- Tạo thử thách hằng ngày.
+- Tích lũy điểm kinh nghiệm (XP).
+- Xây dựng hệ thống cấp độ (Level).
