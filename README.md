@@ -72,7 +72,6 @@ Bộ thiết kế Figma hiện bao gồm **30 màn hình**, được chia thành
 | Target Users | English Learners |
 | Development Status | In Development |
 
-> **Note:** README mô tả chức năng theo bản thiết kế Figma và định hướng triển khai. Những tính năng chưa được lập trình hoặc tích hợp backend cần được cập nhật trạng thái sau khi phát triển.
 
 ---
 
