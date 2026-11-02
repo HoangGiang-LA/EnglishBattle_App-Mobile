@@ -48,11 +48,29 @@ Xác nhận các readAt đã chiếu được gộp theo transaction gốc notif
 tránh tranh chấp giữa transaction cha và con. SDK thử lại có giới hạn khi
 gặp maxretry; readAt đầu tiên và quyết định đọc vẫn bất biến qua lần gửi lại.
 
-Thông báo hiện phát sinh từ thành tích thi đấu và thành tích luyện tập 20 lần.
+Thông báo hiện phát sinh từ thành tích thi đấu, thành tích luyện tập 20 lần
+và thành tích hoàn thành thử thách hằng ngày.
 Payload thông báo luyện tập được lưu cùng quyết định mở khóa; lỗi giữa chừng
 được retry trước marker settlement. Worker cũng bổ sung sự kiện cho thành
 tích cũ. Thông báo chỉ dẫn tới màn hình cho phép và không phát sinh thêm xu.
 Đây là trung tâm thông báo trong app; FCM là phạm vi triển khai riêng.
+
+## Thành tích thử thách hằng ngày
+
+Điều kiện `completed_daily_challenge_count` (seed: `seven_daily_challenges`)
+đếm các ngày hoàn tất hợp lệ, không yêu cầu liên tiếp. Mỗi ngày chỉ đếm một
+slot của UID; slot phải trỏ tới kết quả daily hoàn tất 5 câu trong đúng ngày
+Việt Nam. Phiên bỏ dở, sai chế độ, thiếu nguồn hoặc quá ngày không được đếm.
+
+Server duyệt slot theo trang 25, không lấy số liệu từ 50 lịch sử dashboard.
+Tiến độ dừng tại mốc lớn nhất đang xuất bản. Transaction giữ tiến độ tăng và
+quyết định mở khóa trước một lần tải cũ đến muộn. Thông báo được lưu cùng
+quyết định mở khóa, tiếp tục phục hồi được sau khi định nghĩa bị archive.
+Không cộng thêm xu cho thành tích, kể cả khi cấu hình có `rewardCoins`.
+
+Settlement daily thực hiện phần này trước marker hoàn tất. Dashboard và
+community worker dựng lại thành tích còn thiếu từ kết quả hiện có; không
+thay đổi điểm, ví hay kết quả nguồn. Không cần index hoặc quyền client mới.
 
 ## Vận hành
 

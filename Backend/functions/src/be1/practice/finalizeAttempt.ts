@@ -3,6 +3,7 @@ import {adminDb} from "../../config/firebaseAdmin";
 import {transactionWithRetry} from "../databaseTransaction";
 import type {BattleAchievement} from "../battle/battleAchievements";
 import {unlockPracticeAchievement} from "../community/practiceNotifications";
+import {refreshDailyAchievements} from "../community/dailyAchievements";
 import {projectLearningActivity} from "../reporting/activity";
 import {
   initializeAttemptAnswers, projectAttemptState, StoredAnswer, StoredAttempt,
@@ -473,6 +474,7 @@ async function finalizeAttemptStored(
             {}),
         };
       });
+    if (grant.outcome === "completed") await refreshDailyAchievements(uid);
   }
 
   const finalAttemptData = {

@@ -3,6 +3,8 @@
 Thi đấu nhanh, kết nối lại và kết quả bất biến: [luật và vận hành](BATTLE.md).
 Bảng xếp hạng và thông báo: [API, phân trang và phục hồi](COMMUNITY.md).
 Thống kê theo kỳ, thời lượng học và lịch sử: [REPORTING](REPORTING.md).
+Kiểm thử tích hợp toàn mục 1: [cách chạy](../tests/be1/README.md) và
+[biên bản nghiệm thu](../tests/be1/ACCEPTANCE.md).
 
 ## Chạy trên Spark khi chưa deploy
 
@@ -76,12 +78,12 @@ việc ghi và hiển thị có thể trễ một lượt worker/scheduler.
 Từ thư mục gốc, dùng JDK 21 rồi chạy:
 
 ```powershell
-npm.cmd --prefix Backend/functions run lint
-node Backend/functions/node_modules/typescript/bin/tsc --project Backend/functions/tsconfig.json
-node frontend/verification/node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --only "auth,database" --project demo-englishbattle-finalization --config firebase.finalization-qa.json --non-interactive "node --test --test-concurrency=1 Backend/tests/be1/reporting.test.mjs Backend/tests/be1/community.test.mjs Backend/tests/be1/battle/battle.test.mjs Backend/tests/be1/battle/battleEffects.test.mjs Backend/tests/be1/practice/learningMaintenance.test.mjs Backend/tests/be1/practice/attemptCompletion.test.mjs Backend/tests/be1/practice/progressAchievements.test.mjs Backend/tests/be1/profileContent.test.mjs"
+npm.cmd --prefix Backend/functions run test:acceptance
 ```
 
 Các test xác nhận project demo và Auth/Database ở `127.0.0.1:9199/9100` trước
 khi ghi fixtures. Không dùng dữ liệu Firebase thật để tạo phiên thử. Test bao
 gồm timeout có/không lựa chọn, câu cuối, restart, midnight, lease, đồng thời,
-lỗi ở từng giai đoạn settlement và chạy worker bằng tiến trình thật.
+lỗi ở từng giai đoạn settlement và chạy worker bằng tiến trình thật. Bộ HTTP
+chạy Functions riêng ở cổng 5002. Thêm `-- --android` để chạy hai client bằng
+adapter SDK thật trên máy ảo; xem hướng dẫn tích hợp ở liên kết đầu tài liệu.

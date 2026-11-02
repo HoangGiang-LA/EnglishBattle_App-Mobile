@@ -1,5 +1,9 @@
 # Danh sách công việc backend — English Battle
 
+> Đây là bản checklist gốc ngày 25/10. Hiện trạng kiểm chứng mục 1 ngày
+> 02/11/2026 được ghi tại [biên bản nghiệm thu](tests/be1/ACCEPTANCE.md);
+> hướng dẫn chạy lại nằm tại [bộ kiểm thử tích hợp](tests/be1/README.md).
+
 Cập nhật: 25/10/2026. Đây là checklist triển khai tiếp theo, chưa phải backend đã hoạt động. Các ô chưa đánh dấu là việc còn phải làm hoặc kiểm chứng khi tích hợp.
 
 ## Phạm vi và hiện trạng

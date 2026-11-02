@@ -5,6 +5,7 @@ import {transactionWithRetry} from "../databaseTransaction";
 import {syncLeaderboardPlayer} from "./leaderboardProjection";
 import {drainNotificationReads} from "./notifications";
 import {refreshPracticeNotifications} from "./practiceNotifications";
+import {refreshDailyAchievements} from "./dailyAchievements";
 
 export const runCommunityMaintenance = async (): Promise<void> => {
   const ref = adminDb.ref("communityMaintenance/discovery");
@@ -30,6 +31,7 @@ export const runCommunityMaintenance = async (): Promise<void> => {
             try {
               await drainNotificationReads(uid);
               await refreshPracticeNotifications(uid);
+              await refreshDailyAchievements(uid);
             } catch (error) {
               console.error("Community inbox retry", {uid,
                 code: (error as {code?: string}).code || "inbox-error"});

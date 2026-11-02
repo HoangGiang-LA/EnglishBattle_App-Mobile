@@ -1,6 +1,7 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {adminAuth, adminDb} from "../../config/firebaseAdmin";
 import {refreshBattleAchievements} from "../battle/battleAchievements";
+import {refreshDailyAchievements} from "../community/dailyAchievements";
 import {notificationCounts, notificationSlice} from
   "../community/notifications";
 import {isStudyDayActive, studyStreak} from "../reporting/activity";
@@ -123,8 +124,10 @@ export const getUserDashboard = onCall(
       const stats = statsSnap.val();
       const wallet = walletSnap.val();
       const daily = dailySnap.val();
-      const refreshed = await refreshBattleAchievements(uid,
+      await refreshBattleAchievements(uid,
         achievementsSnap.val(), userAchievementsSnap.val());
+      const refreshedAchievements = await refreshDailyAchievements(uid,
+        achievementsSnap.val());
 
       let dailyStatus: DailyStatus = "available";
 
@@ -200,7 +203,7 @@ export const getUserDashboard = onCall(
   achievementsSnap.val() ?? {};
 
       const userAchievementData =
-  refreshed?.achievements ?? userAchievementsSnap.val() ?? {};
+  refreshedAchievements;
 
       const achievements = Object.entries(
         achievementDefinitions
@@ -239,7 +242,10 @@ export const getUserDashboard = onCall(
             definition.conditionType === "battle_win_streak" ?
               `Thắng ${threshold} trận liên tiếp.` :
               definition.conditionType === "settled_battle_count" ?
-                `Hoàn tất ${threshold} trận đấu.` : "";
+                `Hoàn tất ${threshold} trận đấu.` :
+                definition.conditionType ===
+                    "completed_daily_challenge_count" ?
+                  `Hoàn thành ${threshold} thử thách hằng ngày.` : "";
 
         return [{
           id: achievementId,

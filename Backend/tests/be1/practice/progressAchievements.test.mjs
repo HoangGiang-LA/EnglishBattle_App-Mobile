@@ -201,7 +201,10 @@ try {
     const abandoned = await waitingAttempt(uid);
     await invoke(leaveAttempt, uid, {attemptId: abandoned.id, requestId: randomUUID()});
     assert.deepEqual(await read(progressPath(uid)), before);
-    assert.equal(await read(`userAchievements/${uid}`), null);
+    const achievements = await read(`userAchievements/${uid}`);
+    assert.equal(achievements?.[achievementId], undefined);
+    assert.equal(achievements?.seven_daily_challenges?.progress, 1);
+    assert.ok(Object.values(achievements || {}).every(a => !a.unlockedAt));
     assert.equal((await read(`wallets/${uid}`)).coinBalance, 4);
   });
 } finally {
