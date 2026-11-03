@@ -14,6 +14,9 @@ const {provisionUserProfile} = require('./lib/be1/auth/userProvisioning.js')
 const {runUserIndexMaintenance} = require('./lib/admin/userIndex.js')
 const {runInvitationMaintenance} = require('./lib/admin/invitations.js')
 const {runQuestionIndexMaintenance} = require('./lib/admin/questionIndex.js')
+const {runBattleIndexMaintenance, runActivityIndexMaintenance} = require('./lib/admin/monitoringIndex.js')
+const {findQuickBattle} = require('./lib/be1/battle/matchmaking.js')
+const {transactBattle} = require('./lib/be1/battle/battleService.js')
 const {createAccounts} = await import('../../../server/src/accounts.mjs')
 const {createApiServer} = await import('../../../server/src/http.mjs')
 const root = fileURLToPath(new URL('../../../../', import.meta.url))
@@ -35,10 +38,23 @@ try {
   env.ADMIN_QA_ADMIN_UID = user.uid
   await auth.setCustomUserClaims(user.uid, {admin: true})
   await provisionUserProfile(user.uid)
+  const learners = []
   for (let i = 0; i < 11; i++) {
     const learner = await auth.createUser({email: `qa-learner-${i}@example.test`, password: env.ADMIN_QA_PASSWORD,
       displayName: `QA learner ${i}`})
     await provisionUserProfile(learner.uid)
+    learners.push(learner)
+  }
+  await findQuickBattle(learners[0].uid, learners[0].displayName, 'browser_monitor_a', 'browser_monitor_a')
+  const matched = await findQuickBattle(learners[1].uid, learners[1].displayName, 'browser_monitor_b', 'browser_monitor_b')
+  env.ADMIN_QA_BATTLE_ID = matched.attemptId
+  await transactBattle(matched.attemptId, {uid: learners[0].uid, sessionId: 'browser_monitor_a', action: {type: 'resume'}})
+  await transactBattle(matched.attemptId, {uid: learners[1].uid, sessionId: 'browser_monitor_b', action: {type: 'resume'}})
+  await runBattleIndexMaintenance()
+  for (let i = 0; i < 10; i++) {
+    await db.ref('adminMonitoringControl/activities/nextRunAt').set(0)
+    await runActivityIndexMaintenance()
+    if ((await db.ref('adminMonitoringControl/activities/ready').get()).val()) break
   }
   await runUserIndexMaintenance()
   for (let i = 0; i < 100; i++) {
@@ -50,7 +66,7 @@ try {
   // Each callable can have a separate cold Node worker in Functions Emulator.
   // Warm entrypoints before the browser's 30-second transport timeout starts.
   const adminContract = JSON.parse(readFileSync(new URL('../../../../frontend/contracts/admin.v1.json', import.meta.url), 'utf8'))
-  for (const action of adminContract.implementedCallables) {
+  for (const action of ['ensureUserProfile', ...adminContract.implementedCallables]) {
     const response = await fetch(`http://127.0.0.1:15003/demo-englishbattle-admin/asia-southeast1/${action}`, {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({data: {}}),
       signal: AbortSignal.timeout(120000),

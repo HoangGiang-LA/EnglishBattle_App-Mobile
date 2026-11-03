@@ -73,15 +73,23 @@ const activity = object({
   id, userId: id, text: text(1000), type: enumeration("battle", "lesson", "user"),
   at: integer(), categoryId: mixedSkill, answered: integer(), correct: integer(),
   completed: {type: "boolean"}, userName: text(100),
-});
+  sourceId: id, outcome: enumeration("registered", "completed", "abandoned", "win", "loss", "draw", "left"),
+}, ["id", "userId", "text", "type", "at", "categoryId", "answered", "correct", "completed", "userName"]);
 const battle = object({
   id, code: text(150), player1: id, player2: id,
   player1Name: text(100), player2Name: text(100),
   score1: integer(), score2: integer(), status: battleStatus, mode,
   categoryId: mixedSkill, startedAt: integer(),
   endedAt: {anyOf: [integer(), {type: "null"}]},
-  logs: array(object({id, at: integer(), type: text(64), message: text(1000)}), 1000),
+  logs: array(object({id, at: integer(), type: text(64), message: text(1000), actorId: id},
+    ["id", "at", "type", "message"]), 1000),
   endReason: text(128),
+  createdAt: integer(), playStartedAt: {anyOf: [integer(), {type: "null"}]},
+  phase: enumeration("ready", "playing", "reconnecting", "completed"),
+  questionCount: {...integer(1), maximum: 10}, roundTimeLimitSeconds: {const: 30},
+  settlementStatus: enumeration("not_due", "pending", "settled"),
+  outcome1: {anyOf: [enumeration("win", "loss", "draw", "left"), {type: "null"}]},
+  outcome2: {anyOf: [enumeration("win", "loss", "draw", "left"), {type: "null"}]},
 }, ["id", "code", "player1", "player2", "player1Name", "player2Name", "score1",
   "score2", "status", "mode", "categoryId", "startedAt", "endedAt", "logs"]);
 const user = object({
@@ -114,6 +122,7 @@ const overview = object({
 
 export const adminDefinitions = {
   user, profile, category, topic, lesson, activity, battle, audit, overview,
+  participant: object({id, code: text(150), name: nonempty(100), status: userStatus}),
   question: object({
     ...questionFields, id, code: text(150), version: integer(1),
     createdAt: integer(), updatedAt: integer(),
@@ -142,8 +151,8 @@ export const adminDefinitions = {
   }),
   usersQuery: query({status: userStatus}),
   questionsQuery: query({status: contentStatus, categoryId: skill, difficulty}),
-  battlesQuery: query({status: battleStatus, mode, categoryId: mixedSkill}),
-  activitiesQuery: query({type: enumeration("user", "lesson", "battle"), categoryId: mixedSkill}),
+  battlesQuery: query({status: battleStatus, mode, categoryId: mixedSkill, range: ref("range")}),
+  activitiesQuery: query({type: enumeration("user", "lesson", "battle"), categoryId: mixedSkill, range: ref("range")}),
   auditQuery: query({actor: id, action: text(64, 1), result: audit.properties.result,
     range: ref("range")}),
   notificationsQuery: query({unreadOnly: {type: "boolean"}}),
@@ -153,7 +162,8 @@ const page = (item: string, maxItems = 50) => object({
   items: array(ref(item), maxItems), total: integer(), page: {...integer(1), maximum: P.maxPage},
   pageSize: {type: "integer", enum: [10, 20, 50]}, snapshotId: id, expiresAt: integer(),
   nextCursor: {anyOf: [text(512, 1), {type: "null"}]},
-});
+  asOf: integer(), lagMs: integer(), ready: {const: true},
+}, ["items", "total", "page", "pageSize", "snapshotId", "expiresAt", "nextCursor"]);
 const envelope = (payloadKey?: string, payload?: Schema, write = false) => object({
   serverNow: integer(), ...(write ? {operationId: id} : {}),
   ...(payloadKey ? {[payloadKey]: payload} : {}),
@@ -201,7 +211,9 @@ export const adminContracts = {
   },
   adminListBattles: {request: request({query: ref("battlesQuery")}), response: envelope("page", page("battle"))},
   adminGetBattle: {
-    request: request({id}), response: envelope("detail", object({battle: ref("battle"), player1: ref("user"), player2: ref("user")})),
+    request: request({id}), response: envelope("detail", object({
+      battle: ref("battle"), player1: ref("participant"), player2: ref("participant"),
+    })),
   },
   adminListActivities: {request: request({query: ref("activitiesQuery")}), response: envelope("page", page("activity"))},
   adminSearch: {request: request({q: nonempty(100)}), response: envelope("items", array(ref("searchItem"), 20))},

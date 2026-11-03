@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Download, Eye, RefreshCw, Swords } from 'lucide-react'
 import { useAdmin } from '../context'
 import { useDebounced, useResource } from '../hooks'
@@ -14,6 +14,7 @@ import {
 } from '../components'
 import { dateTime, downloadCsv, message, number } from '../lib'
 import { statusLabels } from '../domain'
+import { ActivityDialog } from './Overview'
 
 export function BattlesPage({ initialSearch = '' }: { initialSearch?: string }) {
   const { api, toast, range } = useAdmin(),
@@ -23,6 +24,7 @@ export function BattlesPage({ initialSearch = '' }: { initialSearch?: string }) 
     [page, setPage] = useState(1),
     [size, setSize] = useState(10),
     [detail, setDetail] = useState(''),
+    [activitiesOpen, setActivitiesOpen] = useState(false),
     [exporting, setExporting] = useState(false)
   const q = useDebounced(search),
     query = { q, status, mode, page, pageSize: size },
@@ -32,7 +34,7 @@ export function BattlesPage({ initialSearch = '' }: { initialSearch?: string }) 
     try {
       const r = await api.exportReport('battles', query, range)
       downloadCsv(r.filename, r.columns, r.rows)
-      toast('Filtered demo matches exported.')
+      toast('Filtered matches exported.')
     } catch (e) {
       toast(message(e), true)
     } finally {
@@ -46,6 +48,9 @@ export function BattlesPage({ initialSearch = '' }: { initialSearch?: string }) 
           <h1>Battle & Moderation</h1>
           <p>Monitor multiplayer matches and review player activity.</p>
         </div>
+        <button className="btn" onClick={() => setActivitiesOpen(true)}>
+          View activities
+        </button>
       </div>
       <div className="toolbar">
         <SearchInput
@@ -83,19 +88,21 @@ export function BattlesPage({ initialSearch = '' }: { initialSearch?: string }) 
           {['quick', 'daily', 'private'].map((m) => (
             <option value={m} key={m}>
               {statusLabels[m]}
+              {api.mode === 'firebase' && m !== 'quick' ? ' (not implemented)' : ''}
             </option>
           ))}
         </select>
         <span className="toolbar-spacer" />
         <button className="text-btn muted" onClick={data.reload} disabled={data.loading}>
           <RefreshCw size={14} className={data.loading ? 'spin' : ''} />
-          Refresh sample data
+          {api.mode === 'demo' ? 'Refresh sample data' : 'Refresh matches'}
         </button>
         <button
           className="btn"
           aria-label="Export matches"
           onClick={exportReport}
           disabled={exporting}
+          title={api.mode === 'firebase' ? 'Report export is not available yet' : 'Export matches'}
         >
           <Download size={15} />
         </button>
@@ -199,16 +206,29 @@ export function BattlesPage({ initialSearch = '' }: { initialSearch?: string }) 
       </section>
       <p className="metrics-note">
         <Swords size={13} />
-        Daily and private matches here are sample records. Live matchmaking and moderation actions
-        require a backend.
+        {api.mode === 'demo'
+          ? 'Daily and private matches here are sample records. Live matchmaking and moderation actions require a backend.'
+          : 'Quick battles use server data. Daily and private battles are not implemented. Monitoring is read only; results cannot be changed here.'}
       </p>
+      {api.mode === 'firebase' && data.data?.asOf && (
+        <p className="metrics-note">
+          Index as of {dateTime(data.data.asOf)}. Refresh to load a new snapshot; open a match for
+          its current state.
+        </p>
+      )}
       {detail && <BattleDialog id={detail} onClose={() => setDetail('')} />}
+      {activitiesOpen && <ActivityDialog onClose={() => setActivitiesOpen(false)} />}
     </>
   )
 }
 function BattleDialog({ id, onClose }: { id: string; onClose: () => void }) {
   const { api } = useAdmin(),
     data = useResource(() => api.battle(id), [id])
+  useEffect(() => {
+    if (api.mode !== 'firebase') return
+    const timer = setInterval(data.reload, 10000)
+    return () => clearInterval(timer)
+  }, [api.mode, data.reload])
   return (
     <Modal
       title="Battle log"
@@ -235,6 +255,7 @@ function BattleDialog({ id, onClose }: { id: string; onClose: () => void }) {
                   <Avatar name={player1.name} />
                   <strong>{player1.name}</strong>
                   <small>{player1.code}</small>
+                  {b.outcome1 && <small>{b.outcome1}</small>}
                 </div>
                 <div className="battle-score">
                   <strong>
@@ -246,33 +267,65 @@ function BattleDialog({ id, onClose }: { id: string; onClose: () => void }) {
                   <Avatar name={player2.name} />
                   <strong>{player2.name}</strong>
                   <small>{player2.code}</small>
+                  {b.outcome2 && <small>{b.outcome2}</small>}
                 </div>
               </div>
               <dl className="detail-grid">
                 <div>
                   <dt>Started</dt>
-                  <dd>{dateTime(b.startedAt)}</dd>
+                  <dd>
+                    {api.mode === 'demo'
+                      ? dateTime(b.startedAt)
+                      : b.playStartedAt
+                        ? dateTime(b.playStartedAt)
+                        : 'Not recorded / awaiting start'}
+                  </dd>
                 </div>
                 <div>
                   <dt>Ended</dt>
-                  <dd>{b.endedAt ? dateTime(b.endedAt) : 'In progress (sample)'}</dd>
+                  <dd>{b.endedAt ? dateTime(b.endedAt) : 'In progress'}</dd>
                 </div>
                 <div>
                   <dt>Question count</dt>
-                  <dd>10 shared questions</dd>
+                  <dd>{b.questionCount ?? 10} shared questions</dd>
                 </div>
                 <div>
                   <dt>Round time limit</dt>
-                  <dd>30 seconds</dd>
+                  <dd>{b.roundTimeLimitSeconds ?? 30} seconds</dd>
                 </div>
+                {api.mode === 'firebase' && (
+                  <>
+                    <div>
+                      <dt>Server phase</dt>
+                      <dd>
+                        {b.phase === 'reconnecting'
+                          ? 'Heartbeat overdue; awaiting server reconciliation'
+                          : b.phase}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>End reason</dt>
+                      <dd>{b.endReason || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Settlement</dt>
+                      <dd>{b.settlementStatus?.replaceAll('_', ' ')}</dd>
+                    </div>
+                  </>
+                )}
               </dl>
               <h3 className="section-title">Match events</h3>
+              {!b.logs.length && <p className="muted">No recorded server events are available.</p>}
               <ol className="timeline">
                 {b.logs.map((log) => (
                   <li key={log.id}>
                     <span className="timeline-dot" />
                     <div>
-                      <strong>{log.type.replaceAll('_', ' ')}</strong>
+                      <strong>
+                        {log.type.replaceAll('_', ' ')}
+                        {log.actorId &&
+                          ` · ${log.actorId === b.player1 ? player1.name : player2.name}`}
+                      </strong>
                       <p>{log.message}</p>
                       <small>{dateTime(log.at)}</small>
                     </div>
@@ -280,7 +333,9 @@ function BattleDialog({ id, onClose }: { id: string; onClose: () => void }) {
                 ))}
               </ol>
               <p className="info-note">
-                This log is simulated. Results cannot be changed from this frontend.
+                {api.mode === 'demo'
+                  ? 'This log is simulated. Results cannot be changed from this frontend.'
+                  : 'Only recorded server events are shown; older history may be incomplete. Live scores include resolved rounds only. Details refresh every 10 seconds.'}
               </p>
             </div>
           )

@@ -64,11 +64,11 @@ async function checkPort(port) {
   })
 }
 
-async function waitFor(url, expectedStatus, options) {
+async function waitFor(url, expectedStatus, options, requestTimeout = 2000) {
   const deadline = Date.now() + 120_000
   while (!stopping && Date.now() < deadline) {
     try {
-      const response = await fetch(url, {...options, signal: AbortSignal.timeout(2000)})
+      const response = await fetch(url, {...options, signal: AbortSignal.timeout(requestTimeout)})
       await response.arrayBuffer()
       if (response.status === expectedStatus) return
     } catch {
@@ -92,6 +92,7 @@ async function main() {
     throw new Error('Tao Backend/server/.env tu .env.example va dien duong dan khoa Admin SDK.')
   }
   const env = {...parseEnv(readFileSync(envFile, 'utf8')), ...process.env}
+  env.FUNCTIONS_DISCOVERY_TIMEOUT ||= '60'
   if (env.FIREBASE_AUTH_EMULATOR_HOST || env.FIREBASE_DATABASE_EMULATOR_HOST) {
     throw new Error('Che do nay dung Auth/Database that. Bo cac bien AUTH/DATABASE_EMULATOR_HOST.')
   }
@@ -135,13 +136,13 @@ async function main() {
   await waitFor(`http://127.0.0.1:5001/${project}/asia-southeast1/ensureUserProfile`, 401, {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({data: {}}),
-  })
+  }, 120000)
   const adminContract = JSON.parse(readFileSync(resolve(repoDir, 'frontend/contracts/admin.v1.json'), 'utf8'))
   for (const action of adminContract.implementedCallables) {
     if (stopping) return
     await waitFor(`http://127.0.0.1:5001/${project}/asia-southeast1/${action}`, 401, {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({data: {}}),
-    })
+    }, 120000)
   }
   if (stopping) return
   start('Learning worker', ['--watch', resolve(functionsDir, 'tools/learning-worker.mjs')], functionsDir, {

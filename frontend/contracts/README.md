@@ -2,10 +2,10 @@
 
 - `business-rules.v1.json`: chính sách đã chốt và các mặc định triển khai được ghi riêng.
 - `mobile.v1.mjs`: JSON Schema cho request/response của 18 callable Android, gồm thống kê theo kỳ, thời lượng và phân trang lịch sử/ví/thông báo; code server nằm trong Backend/functions.
-- `admin.v1.json`: ánh xạ 21 callable admin và một `reset` chỉ dùng demo, giới hạn và mã lỗi. `admin.schemas.v1.json` chứa JSON Schema request/response của đủ 21 API; được xuất từ `Backend/functions/src/admin/contracts.ts`. Wire DTO đã bổ sung revision, operation ID, snapshot và phân trang audit/thông báo. Adapter Profile/Users đã nối UI; các nhóm còn lại nối theo các bước tiếp theo.
+- `admin.v1.json`: ánh xạ 21 callable admin và một `reset` chỉ dùng demo, giới hạn và mã lỗi. `admin.schemas.v1.json` chứa JSON Schema request/response của đủ 21 API; được xuất từ `Backend/functions/src/admin/contracts.ts`. Wire DTO đã bổ sung revision, operation ID, snapshot và phân trang audit/thông báo. Adapter đã nối các nhóm trong `implementedCallables`; phần còn lại nối theo các bước tiếp theo.
 - `database.rules.proposed.json`: Rules client để kiểm thử bằng emulator, **chưa deploy**.
 
-Giữ nguyên UI theo Figma. Từ 03/11/2026, 12 callable Profile/Users/Catalog/Questions đã có nghiệp vụ thật và adapter web Firebase. 9 callable còn lại đã được export qua guard/schema/rate limit chung và trả `unimplemented`; web không fallback sang mock. Xem `Backend/functions/ADMIN-USERS.md` và `ADMIN-CONTENT.md` cho operation, revision/version, quan hệ nội dung, TTS và QA.
+Giữ nguyên UI theo Figma. Từ 03/11/2026, 15 callable Profile/Users/Catalog/Questions/Battles/Activities đã có nghiệp vụ thật và adapter web Firebase. 6 callable còn lại đã được export qua guard/schema/rate limit chung và trả `unimplemented`; web không fallback sang mock. Xem `Backend/functions/ADMIN-USERS.md`, `ADMIN-CONTENT.md` và `ADMIN-MONITORING.md` cho quy tắc, phục hồi và QA.
 
 ## Quy tắc đã xác nhận ngày 25/10/2026
 
@@ -29,6 +29,6 @@ Client dùng SDK Auth cho email/password và đọc danh mục published qua RTD
 
 Rules đề xuất: chặn toàn bộ client write; chỉ tài khoản active được đọc danh mục theo query published và dữ liệu cá nhân của mình; chỉ admin có boolean claim `true` và active được đọc view quản trị. Ngân hàng câu/đáp án, bộ đề trận và cấu hình server không đọc trực tiếp, kể cả từ trình duyệt admin. API admin mới được trả đáp án sau kiểm tra quyền. Đây là một đề xuất bảo thủ; tài liệu schema liệt kê quyền có thể cần thêm về sau không đồng nghĩa tất cả các nhánh ấy đang mở trong file Rules này.
 
-Phiên bản câu hỏi: admin dùng integer `1`, RTDB dùng `v1`; adapter đổi giữa hai dạng. Options từ array có ID sang map keyed theo ID, giữ `order`. Không sửa bản `questionVersions`/`questionAnswers` đang được attempt tham chiếu. Admin `ongoing` ánh xạ từ `playing/reconnecting`; không chuyển status UI thành status lưu trữ một cách trực tiếp.
+Phiên bản câu hỏi: admin dùng integer `1`, RTDB dùng `v1`; adapter đổi giữa hai dạng. Options từ array có ID sang map keyed theo ID, giữ `order`. Không sửa bản `questionVersions`/`questionAnswers` đang được attempt tham chiếu. Admin `ongoing` ánh xạ từ room `ready/active`; phase chi tiết chỉ báo heartbeat overdue khi cần, không thay engine kết thúc trận. Participant trong battle detail chỉ gồm id/code/name/status. Trang giám sát có asOf/lagMs; không chuyển status UI thành status lưu trữ.
 
 Kiểm thử: [verification](../verification/README.md). Quy trình triển khai tiếp: [bàn giao trước backend](../docs/PRE-BACKEND-HANDOFF.md).

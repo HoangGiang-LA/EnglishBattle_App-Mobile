@@ -1,6 +1,9 @@
 import type {
   AdminProfile,
   AdminService,
+  Activity,
+  BattleRecord,
+  BattleDetail,
   Catalog,
   ContentInput,
   ListQuery,
@@ -54,6 +57,9 @@ function describe(error: unknown): Error {
     'account-deleted': 'Tài khoản đã xóa không thể mở lại hoặc chỉnh sửa.',
     'user-index-not-ready': 'Danh sách người dùng đang được chuẩn bị. Thử lại sau ít giây.',
     'question-index-not-ready': 'Danh sách câu hỏi đang được chuẩn bị. Thử lại sau ít giây.',
+    'monitoring-index-not-ready': 'Dữ liệu giám sát đang được tổng hợp. Thử lại sau ít giây.',
+    'invalid-stored-battle': 'Dữ liệu trận hiện có cần được kiểm tra trên server.',
+    'invalid-stored-activity': 'Dữ liệu hoạt động hiện có cần được kiểm tra trên server.',
     'invalid-content-relation': 'Kỹ năng, chủ đề và bài học phải thuộc cùng một nhánh nội dung.',
     'parent-not-published':
       'Xuất bản kỹ năng, chủ đề và bài học cha trước khi xuất bản nội dung này.',
@@ -77,7 +83,7 @@ function describe(error: unknown): Error {
     'permission-denied': 'Quyền quản trị đã bị thu hồi hoặc tài khoản bị khóa.',
     'invalid-argument': 'Dữ liệu nhập không hợp lệ. Kiểm tra lại form.',
     'already-exists': 'Email hoặc mã yêu cầu đã được sử dụng.',
-    'not-found': 'Không còn tìm thấy tài khoản này.',
+    'not-found': 'Không còn tìm thấy bản ghi này.',
     'resource-exhausted': 'Đã vượt giới hạn gọi API hoặc kích thước truy vấn. Thử lại sau.',
     aborted:
       'Thao tác đang xử lý hoặc dữ liệu đang cập nhật. Thử lại với cùng nội dung để xác minh kết quả.',
@@ -93,7 +99,7 @@ function describe(error: unknown): Error {
   )
 }
 
-/** Live profile/users only. Other groups explicitly wait for steps 3–6. */
+/** Supported groups use callable APIs; later groups explicitly report unavailable. */
 export class FirebaseAdminService implements AdminService {
   readonly mode = 'firebase' as const
   private readonly pending = new Map<string, Pending>()
@@ -398,9 +404,50 @@ export class FirebaseAdminService implements AdminService {
       throw error
     }
   }
-  battles: AdminService['battles'] = unavailable
-  battle: AdminService['battle'] = unavailable
-  activities: AdminService['activities'] = unavailable
+  private async monitoringPage<T>(
+    kind: 'battles' | 'activities',
+    query: ListQuery,
+  ): Promise<Page<T>> {
+    const generation = this.generation,
+      page = query.page || 1
+    const filters = {
+      pageSize: query.pageSize || 10,
+      ...(query.q?.trim() ? { q: query.q.trim() } : {}),
+      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(query.range ? { range: query.range } : {}),
+      ...(kind === 'battles' && query.status ? { status: query.status } : {}),
+      ...(kind === 'battles' && query.mode ? { mode: query.mode } : {}),
+      ...(kind === 'activities' && (query.type || query.status)
+        ? { type: query.type || query.status }
+        : {}),
+    }
+    const key = stable([kind, filters]),
+      action = kind === 'battles' ? 'adminListBattles' : 'adminListActivities'
+    let snapshotId = this.snapshots.get(key)
+    try {
+      let first: (Page<T> & { snapshotId: string }) | undefined
+      // Page one and Refresh create a fresh snapshot. Later pages reuse its stable order.
+      if (page === 1 || !snapshotId) {
+        first = (await this.read(action, { query: { ...filters, page: 1 } })).page as typeof first
+        if (generation !== this.generation) throw new Error('Danh sách đang được làm mới.')
+        snapshotId = first!.snapshotId
+        this.snapshots.set(key, snapshotId)
+      }
+      const result =
+        page === 1
+          ? first!
+          : ((await this.read(action, { query: { ...filters, page, snapshotId } })).page as Page<T>)
+      if (generation !== this.generation) throw new Error('Danh sách đang được làm mới.')
+      return result
+    } catch (error) {
+      this.snapshots.delete(key)
+      throw error
+    }
+  }
+  battles = (query: ListQuery) => this.monitoringPage<BattleRecord>('battles', query)
+  battle = async (id: string) => (await this.read('adminGetBattle', { id })).detail as BattleDetail
+  activities = (query: ListQuery) =>
+    this.monitoringPage<Activity & { userName: string }>('activities', query)
   search: AdminService['search'] = unavailable
   notifications: AdminService['notifications'] = unavailable
   readNotifications: AdminService['readNotifications'] = unavailable

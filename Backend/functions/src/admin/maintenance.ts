@@ -11,6 +11,7 @@ import {runUserIndexMaintenance} from "./userIndex";
 import {runInvitationMaintenance} from "./invitations";
 import {runRoleMaintenance} from "./roles";
 import {runQuestionIndexMaintenance} from "./questionIndex";
+import {runBattleIndexMaintenance, runActivityIndexMaintenance} from "./monitoringIndex";
 
 /** Bounded due-index recovery, with an independent lease for housekeeping. */
 export async function runAdminMaintenance(
@@ -27,6 +28,7 @@ export async function runAdminMaintenance(
     // Isolated tasks: an email/index failure must not starve operation recovery.
     const projections = await Promise.allSettled([
       runUserIndexMaintenance(), runInvitationMaintenance(), runRoleMaintenance(db), runQuestionIndexMaintenance(),
+      runBattleIndexMaintenance(), runActivityIndexMaintenance(),
     ]);
     for (const result of projections) {
       if (result.status === "rejected") console.warn("Admin projection deferred", {code: "unavailable"});

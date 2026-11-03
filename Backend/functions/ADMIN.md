@@ -4,11 +4,12 @@ Cập nhật: 03/11/2026. Phạm vi: local/Spark, chưa deploy production.
 
 Bước 2 và bảo vệ admin cuối cùng: [hành vi, API, phục hồi và email](ADMIN-USERS.md).
 Bước 3: [danh mục, ngân hàng câu hỏi, phiên bản và TTS](ADMIN-CONTENT.md).
+Bước 4: [giám sát trận, hoạt động, dữ liệu riêng tư và worker](ADMIN-MONITORING.md).
 
 ## Trạng thái
 
 - Export đủ 21 callable tại `asia-southeast1`, dùng chung guard, validator và rate limit.
-- Đã gắn 12 handler Profile/Users/Catalog/Questions của Bước 2–3. 9 handler thuộc Bước 4–6
+- Đã gắn 15 handler Profile/Users/Catalog/Questions/Battles/Activities của Bước 2–4. 6 handler thuộc Bước 5–6
   tiếp tục trả `unimplemented`. Web mặc định dùng adapter Firebase cho các nhóm này; demo là opt-in.
 - HTTP `getAdminSession` tiếp tục xác nhận phiên đăng nhập; không thay thế guard callable.
 - Không thêm API cấp quyền, đổi rating/xu, sửa kết quả, daily/private, Storage hoặc FCM.
@@ -233,3 +234,35 @@ Build/lint/format đạt. Quy tắc nội dung, phục hồi và giới hạn ki
 Tài liệu Firebase tham chiếu: [thu hồi phiên](https://firebase.google.com/docs/auth/admin/manage-sessions),
 [transaction RTDB](https://firebase.google.com/docs/database/admin/save-data),
 [callable](https://firebase.google.com/docs/functions/callable).
+
+## Biên bản Bước 4 — 03/11/2026
+
+Đã nối `adminListBattles`, `adminGetBattle`, `adminListActivities` và adapter/web
+Battles cùng hộp thoại hoạt động. Tổng hiện tại 15/21 API có nghiệp vụ;
+6 API Bước 5–6 tiếp tục báo `unimplemented`. Chi tiết và giới hạn tại
+[`ADMIN-MONITORING.md`](ADMIN-MONITORING.md).
+
+| Kiểm tra local trên mã cuối | Kết quả |
+|---|---|
+| Functions lint, TypeScript build, schema export khớp runtime | Đạt |
+| Schema 21 API | 7/7 |
+| Hồi quy admin Bước 1–4 | 79/79, gồm 14 kiểm thử giám sát |
+| Web unit/component/adapter | 56/56 |
+| Browser Firebase qua HTTP/callable Emulator | 9/9, gồm 3 luồng giám sát mới |
+| Browser demo desktop/mobile | 20/20 |
+| Web production build, format các file TS thay đổi, git diff check | Đạt |
+
+Kiểm thử giám sát dùng matchmaking/settlement/reporting thật trong project Emulator
+tách biệt, 63 room và 223 activity. Đã kiểm tra retry không trùng, mất acknowledgement,
+lease hết hạn, nguồn sai không được coi là ready, snapshot gắn actor/filter, ngày cuối,
+ẩn danh khi xóa mềm và không lộ dữ liệu bí mật. Đã đối chiếu ảnh dialog trận trên web.
+
+Lượt browser đầu gặp lỗi khởi tạo Functions Emulator. Đã dừng cây tiến trình QA,
+tăng thời gian discovery riêng local/QA lên 60 giây và chạy lại toàn bộ 9/9 đạt.
+Timeout nghiệp vụ web giữ 30 giây. Không sửa Auth/RTDB thật hoặc deploy trong QA.
+Launcher Spark thật chỉ kiểm tra cú pháp, vẫn cần khóa Admin SDK hợp lệ.
+
+Chưa nghiệm thu Android trên thiết bị hoặc smoke test Firebase production.
+Không chạy lại toàn bộ suite BE1 193+10 trong Bước 4; các luồng user thực tế liên quan
+đã được kiểm tra trong suite admin (matchmaking, settlement, reporting, khóa/xóa,
+snapshot phiên học và phiên thi đấu). Các số 193+10 ở biên bản Bước 3 là kết quả mốc trước.

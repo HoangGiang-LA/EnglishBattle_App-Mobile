@@ -85,7 +85,16 @@ export interface BattleRecord {
   categoryId: SkillId | 'mixed'
   startedAt: number
   endedAt: number | null
-  logs: { id: string; at: number; type: string; message: string }[]
+  logs: { id: string; at: number; type: string; message: string; actorId?: string }[]
+  createdAt?: number
+  playStartedAt?: number | null
+  phase?: 'ready' | 'playing' | 'reconnecting' | 'completed'
+  endReason?: string
+  questionCount?: number
+  roundTimeLimitSeconds?: number
+  settlementStatus?: 'not_due' | 'pending' | 'settled'
+  outcome1?: 'win' | 'loss' | 'draw' | 'left' | null
+  outcome2?: 'win' | 'loss' | 'draw' | 'left' | null
 }
 export interface Activity {
   id: string
@@ -98,6 +107,8 @@ export interface Activity {
   correct: number
   completed: boolean
   userName?: string
+  sourceId?: string
+  outcome?: 'registered' | 'completed' | 'abandoned' | 'win' | 'loss' | 'draw' | 'left'
 }
 export interface AdminNotification {
   id: string
@@ -139,6 +150,8 @@ export interface ListQuery {
   categoryId?: string
   difficulty?: string
   mode?: string
+  type?: string
+  range?: DateRange
   page?: number
   pageSize?: number
 }
@@ -147,6 +160,9 @@ export interface Page<T> {
   total: number
   page: number
   pageSize: number
+  asOf?: number
+  lagMs?: number
+  ready?: boolean
 }
 export interface Overview {
   totalUsers: number
@@ -180,8 +196,8 @@ export interface Overview {
 }
 export interface BattleDetail {
   battle: BattleRecord
-  player1: UserRecord
-  player2: UserRecord
+  player1: Pick<UserRecord, 'id' | 'code' | 'name' | 'status'>
+  player2: Pick<UserRecord, 'id' | 'code' | 'name' | 'status'>
 }
 export interface Catalog {
   categories: Category[]

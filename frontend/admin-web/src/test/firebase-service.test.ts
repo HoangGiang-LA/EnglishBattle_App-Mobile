@@ -335,4 +335,57 @@ describe('Firebase admin adapter', () => {
     expect(transport.mock.calls[0][1].expectedRevision).toBe(7)
     expect(JSON.parse(sessionStorage.getItem('english-battle.admin.pending.admin_1')!)).toEqual([])
   })
+  it('binds monitoring snapshots to each filter and refreshes page one without requesting all rows', async () => {
+    let sequence = 0
+    const transport = vi.fn<AdminTransport>().mockImplementation(async () => ({
+      page: { ...page([]), snapshotId: `monitor_${++sequence}`, asOf: 100, lagMs: 2, ready: true },
+    }))
+    const service = new FirebaseAdminService('admin_1', transport)
+    await service.battles({ status: 'completed', mode: 'quick', pageSize: 20 })
+    await service.battles({ status: 'completed', mode: 'quick', pageSize: 20, page: 3 })
+    expect(transport.mock.calls[1]).toEqual([
+      'adminListBattles',
+      {
+        query: {
+          page: 3,
+          pageSize: 20,
+          status: 'completed',
+          mode: 'quick',
+          snapshotId: 'monitor_1',
+        },
+      },
+    ])
+    await service.battles({ status: 'completed', mode: 'quick', pageSize: 20 })
+    expect(transport.mock.calls[2][1]).toEqual({
+      query: { page: 1, pageSize: 20, status: 'completed', mode: 'quick' },
+    })
+    await service.activities({ type: 'battle', categoryId: 'mixed', pageSize: 50, page: 2 })
+    expect(transport.mock.calls[3]).toEqual([
+      'adminListActivities',
+      {
+        query: { page: 1, pageSize: 50, type: 'battle', categoryId: 'mixed' },
+      },
+    ])
+    expect(transport.mock.calls[4][1]).toEqual({
+      query: {
+        page: 2,
+        pageSize: 50,
+        type: 'battle',
+        categoryId: 'mixed',
+        snapshotId: 'monitor_4',
+      },
+    })
+  })
+  it('reads battle detail without source mutations and surfaces unavailable monitoring instead of sample data', async () => {
+    const transport = vi
+      .fn<AdminTransport>()
+      .mockResolvedValue({ detail: { battle: { id: 'b1' } } })
+    const service = new FirebaseAdminService('admin_1', transport)
+    expect(await service.battle('b1')).toEqual({ battle: { id: 'b1' } })
+    expect(transport.mock.calls[0]).toEqual(['adminGetBattle', { id: 'b1' }])
+    transport.mockRejectedValueOnce(failed('failed-precondition', 'monitoring-index-not-ready'))
+    await expect(service.battles({})).rejects.toThrow(/giám sát đang được tổng hợp/)
+    transport.mockRejectedValueOnce(failed('unimplemented'))
+    await expect(service.battles({ mode: 'daily' })).rejects.toThrow(/chưa được triển khai/)
+  })
 })

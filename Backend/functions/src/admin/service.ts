@@ -5,9 +5,14 @@ import {readAdminCatalog, readAdminQuestion} from "./contentModel";
 import {catalogOperationHandlers} from "./catalog";
 import {questionOperationHandlers} from "./questions";
 import {listAdminQuestions} from "./questionIndex";
+import {getMonitoringBattle} from "./monitoringModel";
+import {listMonitoring} from "./monitoringIndex";
 
 export const adminRuntime = createAdminRuntime(adminAuth, adminDb, {
   ...userReadHandlers,
+  adminGetBattle: async (_actor, data) => ({detail: await getMonitoringBattle(String(data.id))}),
+  adminListBattles: async (actor, data) => ({page: await listMonitoring("battles", actor.uid, data.query as Record<string, unknown>)}),
+  adminListActivities: async (actor, data) => ({page: await listMonitoring("activities", actor.uid, data.query as Record<string, unknown>)}),
   adminGetCatalog: async () => ({catalog: await readAdminCatalog()}),
   adminGetQuestion: async (_actor, data) => ({question: await readAdminQuestion(String(data.id))}),
   adminListQuestions: async (actor, data) => ({

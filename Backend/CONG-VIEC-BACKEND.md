@@ -124,10 +124,10 @@ Mọi response có `serverNow` theo epoch milliseconds. Kiểu trường, bắt 
 
 ## 2. Backend phía admin
 
-Mốc 03/11/2026: nền tảng API và Bước 2–3 đã triển khai, kiểm thử local/Emulator;
+Mốc 03/11/2026: nền tảng API và Bước 2–4 đã triển khai, kiểm thử local/Emulator;
 chưa deploy production hoặc kiểm chứng email/Android thiết bị thật. Chi tiết và biên bản:
 [`functions/ADMIN.md`](functions/ADMIN.md), [`functions/ADMIN-USERS.md`](functions/ADMIN-USERS.md),
-[`functions/ADMIN-CONTENT.md`](functions/ADMIN-CONTENT.md).
+[`functions/ADMIN-CONTENT.md`](functions/ADMIN-CONTENT.md), [`functions/ADMIN-MONITORING.md`](functions/ADMIN-MONITORING.md).
 Các dấu hoàn thành dưới đây chỉ áp dụng cho mốc local/Emulator này.
 
 ### 2.1. Xác thực và phân quyền
@@ -172,20 +172,22 @@ Các dấu hoàn thành dưới đây chỉ áp dụng cho mốc local/Emulator 
 
 ### 2.5. Trận đấu, hoạt động và vận hành
 
-- [ ] Danh sách/chi tiết trận, log và bộ lọc dùng kết quả server; UI `ongoing` ánh xạ từ `playing/reconnecting`.
-- [ ] Không lộ lựa chọn chưa công bố của đối thủ hoặc toàn bộ đáp án trong view/log không cần thiết.
-- [ ] Phạm vi hiện tại là xem/giám sát; chưa có API đảo kết quả/hủy trận mang quyền quản trị khi chưa chốt nghiệp vụ.
+- [x] Danh sách/chi tiết trận nhanh, timeline và bộ lọc dùng nguồn server. `ready/active` → `ongoing`; không tạo log thiếu. Daily/private báo chưa triển khai.
+- [x] Không lộ lựa chọn, đáp án bí mật, session ID hoặc token; điểm live chỉ tính vòng đã chốt.
+- [x] Hoạt động đăng ký/học/thi đấu có ID ổn định, worker checkpoint/lease, phân trang snapshot và asOf; chạy lại không tạo dòng trùng.
+- [x] Phạm vi hiện tại là xem/giám sát; không có API đảo kết quả/hủy trận. Reads không chạy settlement hoặc sửa nguồn.
 - [ ] Tìm kiếm toàn hệ thống có giới hạn, chỉ trả nhóm/đường dẫn cho phép; index chứa email chỉ admin được truy cập.
 - [ ] Hộp thư admin và trạng thái đọc gắn đúng UID admin.
 - [ ] Audit do backend append: actor UID lấy từ token, target, hành động, thời gian server, kết quả và thay đổi cần thiết; không ghi mật khẩu/token.
-- [ ] Không cung cấp `reset()` dữ liệu production; đó là phương thức chỉ dành cho demo.
+- [x] Không cung cấp `reset()` dữ liệu production; đó là phương thức chỉ dành cho demo.
 
 ### 2.6. Danh sách 21 callable admin
 
 Tên và request cụ thể lấy từ `admin.v1.json` và `admin.schemas.v1.json`; kiểu UI lấy từ
 `domain.ts`. Cả 21 callable đã có guard/schema; 6 API Profile/Users có nghiệp vụ và
-adapter thật; Bước 3 bổ sung 6 API Catalog/Questions, còn 9 API trả `unimplemented`.
-Mutation có thêm `operationId`. Xem `functions/ADMIN-CONTENT.md`.
+adapter thật; Bước 3 bổ sung 6 API Catalog/Questions, Bước 4 bổ sung 3 API Battles/Activities.
+Tổng 15/21 có nghiệp vụ; 6 API Bước 5–6 trả `unimplemented`. Mutation có thêm `operationId`.
+Xem `functions/ADMIN-CONTENT.md` và `functions/ADMIN-MONITORING.md`.
 
 | Callable | Phương thức AdminService | Payload ngoài `serverNow` |
 | --- | --- | --- |

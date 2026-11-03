@@ -7,6 +7,8 @@ import {fileURLToPath} from 'node:url'
 
 const root = fileURLToPath(new URL('../../../', import.meta.url))
 const env = {...process.env}
+// Firebase CLI defaults discovery to 10 seconds; allow cold local workers to initialize on Windows.
+env.FUNCTIONS_DISCOVERY_TIMEOUT = '60'
 // A dedicated demo project, ports AND namespace; never inherit live credentials.
 for (const key of ['GOOGLE_APPLICATION_CREDENTIALS', 'FIREBASE_CONFIG',
   'FIREBASE_DATABASE_URL', 'FIREBASE_PROJECT_ID', 'FIREBASE_AUTH_EMULATOR_HOST',
@@ -62,4 +64,5 @@ await run([cli, 'emulators:exec', '--only', 'auth,database,functions', '--projec
   '--config', 'firebase.admin-qa.json', '--non-interactive',
   process.argv.includes('--web') ? 'node Backend/tests/admin/web/run.mjs' : process.argv.includes('--content') ?
     'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/content.test.mjs' :
-    'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/integration.test.mjs Backend/tests/admin/users.test.mjs Backend/tests/admin/content.test.mjs'])
+    process.argv.includes('--monitoring') ? 'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/monitoring.test.mjs' :
+    'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/integration.test.mjs Backend/tests/admin/users.test.mjs Backend/tests/admin/content.test.mjs Backend/tests/admin/monitoring.test.mjs'])

@@ -1,6 +1,6 @@
 # English Battle — Web admin
 
-Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. **Mặc định Profile, Users và Content dùng Firebase qua 12 callable admin.** Các nhóm còn lại báo chưa triển khai, không trả dữ liệu mẫu. Bố cục 5 trang được giữ lại.
+Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. **Profile, Users, Content, Battles và hoạt động dùng Firebase qua 15 callable admin.** Các nhóm còn lại báo chưa triển khai, không trả dữ liệu mẫu. Bố cục 5 trang được giữ lại.
 
 ## Chạy trên máy của bạn
 
@@ -47,7 +47,9 @@ Giao diện dùng tiếng Anh như 5 ảnh thiết kế. Font Inter và icon đ�
 - Lưu requestId/payload theo UID trong sessionStorage trước khi gửi; khôi phục phiên thử lại đúng intent cũ để xác minh sau timeout/reload. Lỗi giữ dữ liệu form, version conflict yêu cầu đọc lại.
 - User đang có operation dở chỉ được xem. Deleted ẩn danh, giữ kết quả/grant/ledger hợp lệ. Không có nút reset dữ liệu thật.
 - Content: quản lý 4 kỹ năng, topic/lesson có revision; câu hỏi có expectedVersion, tạo version bất biến và archive. Listening thật chỉ dùng TTS, lesson là bắt buộc; UI ẩn URL/upload.
-- Các nhóm Dashboard/Battles/Analytics/search/notification/audit browsing/export hiện báo chưa triển khai. Xem [backend Bước 2](../../Backend/functions/ADMIN-USERS.md) và [Bước 3](../../Backend/functions/ADMIN-CONTENT.md) cho quy tắc, giới hạn và phục hồi.
+- Battles: đọc trận nhanh thật, hai người chơi, điểm vòng đã chốt, lý do kết thúc, settlement và các event server có thật. Chi tiết tự tải lại 10 giây; Refresh danh sách tạo snapshot mới. Danh sách công bố `asOf` vì worker cập nhật theo vòng quét.
+- **View activities** trong Battles mở hoạt động đăng ký/học/thi đấu, lọc loại và phân trang 10/20/50. Tên tài khoản xóa mềm được ẩn danh cả trên snapshot cũ. Daily/private báo chưa triển khai.
+- Dashboard/Analytics/search/notification/audit browsing/export còn chờ các bước tiếp theo. Xem [Bước 2](../../Backend/functions/ADMIN-USERS.md), [Bước 3](../../Backend/functions/ADMIN-CONTENT.md) và [Bước 4](../../Backend/functions/ADMIN-MONITORING.md) cho quy tắc, giới hạn và phục hồi.
 
 ## Chế độ demo để xem thiết kế
 
@@ -84,7 +86,7 @@ src/
   domain.ts            # Model và hợp đồng AdminService cho tích hợp sau
   context.ts           # Service, ngày chọn và thông báo dùng chung
   data/
-    firebase-service.ts # Adapter Profile/Users/Content thật; giữ requestId/revision/version/snapshot và lỗi
+    firebase-service.ts # Adapter Profile/Users/Content/Battles/Activities; requestId, revision/version, snapshot
     mock-service.ts    # Mô phỏng có kiểm tra dữ liệu, lưu và nhật ký
     metrics.ts         # Tính KPI từ dữ liệu mẫu
     seed.ts            # Khởi tạo người dùng/trận/hoạt động mẫu

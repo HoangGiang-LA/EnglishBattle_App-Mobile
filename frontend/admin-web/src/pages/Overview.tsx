@@ -60,7 +60,9 @@ function ActivityTable({ rows }: { rows: (Activity & { userName?: string })[] })
                     : a.type === 'lesson'
                       ? a.completed
                         ? 'Lesson completed'
-                        : 'Lesson started'
+                        : a.outcome === 'abandoned'
+                          ? 'Lesson abandoned'
+                          : 'Lesson started'
                       : a.completed
                         ? 'Battle completed'
                         : 'Battle activity'}
@@ -74,7 +76,7 @@ function ActivityTable({ rows }: { rows: (Activity & { userName?: string })[] })
     </div>
   )
 }
-function ActivityDialog({ onClose }: { onClose: () => void }) {
+export function ActivityDialog({ onClose }: { onClose: () => void }) {
   const { api } = useAdmin(),
     [page, setPage] = useState(1),
     [size, setSize] = useState(10),
@@ -86,11 +88,20 @@ function ActivityDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal
       title="Recent activities"
-      subtitle="Simulated registrations, lessons and battle events"
+      subtitle={
+        api.mode === 'demo'
+          ? 'Simulated registrations, lessons and battle events'
+          : 'Recorded registrations, learning and battle activity'
+      }
       onClose={onClose}
       wide
     >
       <div className="modal-body">
+        {api.mode === 'firebase' && activities.data?.asOf && (
+          <p className="info-note">
+            Index as of {dateTime(activities.data.asOf)}. Names reflect current account visibility.
+          </p>
+        )}
         <label className="inline-filter">
           Activity type
           <select
