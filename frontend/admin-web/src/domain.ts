@@ -33,6 +33,7 @@ export interface Category {
   name: string
   description: string
   status: ContentStatus
+  revision?: number
 }
 export interface Topic {
   id: string
@@ -40,6 +41,7 @@ export interface Topic {
   title: string
   description: string
   status: ContentStatus
+  revision?: number
 }
 export interface Lesson {
   id: string
@@ -48,6 +50,7 @@ export interface Lesson {
   description: string
   difficulty: Difficulty
   status: ContentStatus
+  revision?: number
 }
 export interface QuestionRecord {
   id: string
@@ -204,6 +207,7 @@ export type ContentInput = {
   categoryId?: SkillId
   topicId?: string
   difficulty?: Difficulty
+  revision?: number
 }
 
 /** Server adapters must implement these methods with bounded, authorized APIs. */
@@ -232,7 +236,7 @@ export interface AdminService {
   saveQuestion(input: QuestionInput, id?: string, expectedVersion?: number): Promise<QuestionRecord>
   archiveQuestion(id: string, expectedVersion: number): Promise<void>
   catalog(): Promise<Catalog>
-  saveContent(input: ContentInput): Promise<void>
+  saveContent(input: ContentInput, expectedRevision?: number): Promise<void>
   battles(query: ListQuery): Promise<Page<BattleRecord>>
   battle(id: string): Promise<BattleDetail>
   activities(query: ListQuery): Promise<Page<Activity & { userName: string }>>

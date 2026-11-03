@@ -30,7 +30,7 @@ const email = {...text(254, 3), pattern: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"};
 const nullableNumber = {anyOf: [{type: "number"}, {type: "null"}]};
 const mixedSkill = {anyOf: [skill, {const: "mixed"}]};
 const reason = nonempty(500);
-const option = object({id, text: nonempty(2000)});
+const option = object({id: {...id, pattern: "^[A-Za-z_][A-Za-z0-9_-]{0,127}$"}, text: nonempty(2000)});
 const queryBase = {
   q: text(100), page: {...integer(1), maximum: P.maxPage},
   pageSize: {type: "integer", enum: [10, 20, 50]},

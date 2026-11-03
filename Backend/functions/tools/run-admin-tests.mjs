@@ -60,5 +60,6 @@ await run(['Backend/functions/tools/export-admin-contract.mjs', '--check'])
 await run(['--test', 'Backend/tests/admin/contracts.test.mjs'])
 await run([cli, 'emulators:exec', '--only', 'auth,database,functions', '--project', project,
   '--config', 'firebase.admin-qa.json', '--non-interactive',
-  process.argv.includes('--web') ? 'node Backend/tests/admin/web/run.mjs' :
-    'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/integration.test.mjs Backend/tests/admin/users.test.mjs'])
+  process.argv.includes('--web') ? 'node Backend/tests/admin/web/run.mjs' : process.argv.includes('--content') ?
+    'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/content.test.mjs' :
+    'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/integration.test.mjs Backend/tests/admin/users.test.mjs Backend/tests/admin/content.test.mjs'])

@@ -17,7 +17,8 @@ Mỗi API vẫn đi qua guard/schema/rate limit của Bước 1. Tất cả muta
 và audit theo actor UID. Không có trường input cấp admin, custom claims, rating hoặc xu.
 Email đăng nhập của chính actor không sửa qua form Users; Profile chỉ sửa tên.
 
-Web mặc định dùng `FirebaseAdminService` cho Profile và Users. Các nhóm thuộc Bước 3–6
+Web mặc định dùng `FirebaseAdminService` cho Profile và Users; Content đã nối ở Bước 3
+(xem `ADMIN-CONTENT.md`). Các nhóm thuộc Bước 4–6
 báo chưa triển khai; không fallback sang mock. Demo phải bật riêng bằng
 `VITE_ADMIN_DATA_MODE=demo` trước khi chạy Vite. Bố cục 5 trang được giữ lại.
 Chế độ thật không có reset demo. Sau đăng nhập mở Users; lưu xong phát sự kiện reload

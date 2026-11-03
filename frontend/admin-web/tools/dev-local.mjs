@@ -136,6 +136,13 @@ async function main() {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({data: {}}),
   })
+  const adminContract = JSON.parse(readFileSync(resolve(repoDir, 'frontend/contracts/admin.v1.json'), 'utf8'))
+  for (const action of adminContract.implementedCallables) {
+    if (stopping) return
+    await waitFor(`http://127.0.0.1:5001/${project}/asia-southeast1/${action}`, 401, {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({data: {}}),
+    })
+  }
   if (stopping) return
   start('Learning worker', ['--watch', resolve(functionsDir, 'tools/learning-worker.mjs')], functionsDir, {
     ...env, LEARNING_WORKER_LOCAL: 'true',

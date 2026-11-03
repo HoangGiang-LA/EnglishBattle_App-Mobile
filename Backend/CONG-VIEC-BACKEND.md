@@ -124,9 +124,10 @@ Mọi response có `serverNow` theo epoch milliseconds. Kiểu trường, bắt 
 
 ## 2. Backend phía admin
 
-Mốc 03/11/2026: nền tảng API và Bước 2 đã triển khai, kiểm thử local/Emulator;
+Mốc 03/11/2026: nền tảng API và Bước 2–3 đã triển khai, kiểm thử local/Emulator;
 chưa deploy production hoặc kiểm chứng email/Android thiết bị thật. Chi tiết và biên bản:
-[`functions/ADMIN.md`](functions/ADMIN.md), [`functions/ADMIN-USERS.md`](functions/ADMIN-USERS.md).
+[`functions/ADMIN.md`](functions/ADMIN.md), [`functions/ADMIN-USERS.md`](functions/ADMIN-USERS.md),
+[`functions/ADMIN-CONTENT.md`](functions/ADMIN-CONTENT.md).
 Các dấu hoàn thành dưới đây chỉ áp dụng cho mốc local/Emulator này.
 
 ### 2.1. Xác thực và phân quyền
@@ -160,13 +161,13 @@ Các dấu hoàn thành dưới đây chỉ áp dụng cho mốc local/Emulator 
 
 ### 2.4. Quản lý nội dung/câu hỏi
 
-- [ ] Quản lý kỹ năng, chủ đề, bài học và trạng thái; kiểm tra quan hệ cha–con trước xuất bản.
-- [ ] Danh sách/tìm kiếm/lọc câu hỏi có phân trang và số tổng chính xác theo bộ lọc.
-- [ ] Server kiểm tra 4 option có ID ổn định, text không trùng, đáp án nằm trong tập option; published cần giải thích.
-- [ ] Reading cần passage; listening cần nguồn nghe hợp lệ theo phạm vi đã chọn.
-- [ ] Chuyển admin `version: 1` ↔ RTDB `v1`; options array ↔ map option ID có `order`.
-- [ ] Dùng `expectedVersion` để từ chối sửa dữ liệu cũ; sửa câu tạo version mới, không sửa snapshot phiên đang học/thi đấu.
-- [ ] Archive thay vì xóa cứng câu đang được tham chiếu trong lịch sử/attempt.
+- [x] Quản lý kỹ năng, chủ đề, bài học và trạng thái; kiểm tra quan hệ cha–con trước xuất bản. Cha draft/archive chặn chọn câu mới, giữ trạng thái con.
+- [x] Danh sách/tìm kiếm/lọc câu hỏi có index, snapshot phân trang và tổng chính xác; vượt giới hạn báo lỗi.
+- [x] Server kiểm tra 4 option có ID ổn định, text không trùng, đáp án nằm trong tập option; published cần giải thích.
+- [x] Reading cần passage; Listening dùng TTS/audioText trong phạm vi hiện tại, không nhận file/URL.
+- [x] Chuyển admin `version: 1` ↔ RTDB `v1`; options array ↔ map option ID có `order`.
+- [x] Dùng `expectedVersion` để từ chối sửa dữ liệu cũ; sửa/archive tạo version mới, không sửa snapshot phiên đang học/thi đấu.
+- [x] Archive thay vì xóa cứng câu đang được tham chiếu trong lịch sử/attempt.
 - [ ] Nếu dùng audio upload thật: Storage, kiểm tra quyền/loại/kích thước, metadata và dọn file mồ côi. Mock base64 hiện tại không phải luồng lưu trữ production.
 
 ### 2.5. Trận đấu, hoạt động và vận hành
@@ -183,7 +184,8 @@ Các dấu hoàn thành dưới đây chỉ áp dụng cho mốc local/Emulator 
 
 Tên và request cụ thể lấy từ `admin.v1.json` và `admin.schemas.v1.json`; kiểu UI lấy từ
 `domain.ts`. Cả 21 callable đã có guard/schema; 6 API Profile/Users có nghiệp vụ và
-adapter thật, 15 API còn lại trả `unimplemented`. Mutation có thêm `operationId`.
+adapter thật; Bước 3 bổ sung 6 API Catalog/Questions, còn 9 API trả `unimplemented`.
+Mutation có thêm `operationId`. Xem `functions/ADMIN-CONTENT.md`.
 
 | Callable | Phương thức AdminService | Payload ngoài `serverNow` |
 | --- | --- | --- |

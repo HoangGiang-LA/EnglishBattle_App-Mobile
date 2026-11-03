@@ -3,12 +3,13 @@
 Cập nhật: 03/11/2026. Phạm vi: local/Spark, chưa deploy production.
 
 Bước 2 và bảo vệ admin cuối cùng: [hành vi, API, phục hồi và email](ADMIN-USERS.md).
+Bước 3: [danh mục, ngân hàng câu hỏi, phiên bản và TTS](ADMIN-CONTENT.md).
 
 ## Trạng thái
 
 - Export đủ 21 callable tại `asia-southeast1`, dùng chung guard, validator và rate limit.
-- Đã gắn 6 handler Profile/Users của Bước 2. 15 handler thuộc Bước 3–6 tiếp tục trả
-  `unimplemented`. Web mặc định dùng adapter Firebase cho Profile/Users; demo là opt-in.
+- Đã gắn 12 handler Profile/Users/Catalog/Questions của Bước 2–3. 9 handler thuộc Bước 4–6
+  tiếp tục trả `unimplemented`. Web mặc định dùng adapter Firebase cho các nhóm này; demo là opt-in.
 - HTTP `getAdminSession` tiếp tục xác nhận phiên đăng nhập; không thay thế guard callable.
 - Không thêm API cấp quyền, đổi rating/xu, sửa kết quả, daily/private, Storage hoặc FCM.
 
@@ -44,8 +45,8 @@ Profile/user/catalog wire DTO thêm `revision`. Audit/thông báo trả `page`, 
 không giới hạn. Export cần `requestId`. Adapter Profile/Users đã giữ requestId/payload
 khi retry; các nhóm còn lại sẽ nối theo cùng hợp đồng ở các bước sau.
 
-Profile/Users đã có index, snapshot và phân trang thật ở Bước 2. Các nhóm nội dung,
-trận, thống kê, audit và thông báo được hoàn thiện trong các bước sau.
+Profile/Users và Questions đã có index, snapshot và phân trang thật ở Bước 2–3.
+Các nhóm trận, thống kê, audit và thông báo được hoàn thiện trong các bước sau.
 Không triển khai offset bằng cách tải root RTDB về trình duyệt.
 
 ## Guard
@@ -174,7 +175,7 @@ revision conflict, mất ACK, lỗi Auth→RTDB, lỗi audit sau commit, expired
 external outcome chưa rõ, rate limit, retention và Rules. Handler kiểm thử chỉ được
 inject trong process test, không export hay bật bằng biến môi trường.
 
-Chưa nghiệm thu Firebase production, email thật, deploy, hoặc các handler Bước 3–6.
+Chưa nghiệm thu Firebase production, email thật, deploy, hoặc các handler Bước 4–6.
 
 ## Biên bản nền tảng Bước 1 — 03/11/2026
 
@@ -219,6 +220,15 @@ Kiểm thử trên dữ liệu Emulator tách biệt; chưa chạy smoke test Fi
 Rules/Functions, gửi/nhận thư ở hộp thư thật hoặc kiểm chứng Android trên thiết bị.
 Email `sent` chỉ xác nhận Firebase chấp nhận yêu cầu. Local launcher dùng dữ liệu thật
 vẫn cần đường dẫn khóa Admin SDK hợp lệ trong `Backend/server/.env`.
+
+## Biên bản Bước 3 — 03/11/2026
+
+Đã nối 6 API Catalog/Questions và trang Content thật. Tổng hiện tại 12/21 API có
+nghiệp vụ; 9 API của Bước 4–6 vẫn báo `unimplemented`. Kiểm tra đạt 7 schema +
+65 admin integration, 54 web unit/component/adapter, 6 browser Firebase/Emulator,
+20 browser demo desktop/mobile, 193 hồi quy BE1 + 10 HTTP/worker và 9 contract/export.
+Build/lint/format đạt. Quy tắc nội dung, phục hồi và giới hạn kiểm chứng tại
+[`ADMIN-CONTENT.md`](ADMIN-CONTENT.md#biên-bản-nghiệm-thu-local--03112026).
 
 Tài liệu Firebase tham chiếu: [thu hồi phiên](https://firebase.google.com/docs/auth/admin/manage-sessions),
 [transaction RTDB](https://firebase.google.com/docs/database/admin/save-data),

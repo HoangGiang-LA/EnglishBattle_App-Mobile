@@ -140,9 +140,13 @@ export function QuestionEditor({
           try {
             await api.saveQuestion(form, question?.id, question?.version)
             toast(
-              question
-                ? 'New question version saved in the demo workspace.'
-                : 'Question added to the demo question bank.',
+              api.mode === 'firebase'
+                ? question
+                  ? 'New question version saved in Firebase.'
+                  : 'Question added to Firebase.'
+                : question
+                  ? 'New question version saved in the demo workspace.'
+                  : 'Question added to the demo question bank.',
             )
             onClose()
           } catch (e) {
@@ -220,8 +224,9 @@ export function QuestionEditor({
                         ))}
                     </select>
                   </Field>
-                  <Field label="Lesson (optional)">
+                  <Field label={api.mode === 'firebase' ? 'Lesson' : 'Lesson (optional)'}>
                     <select
+                      required={api.mode === 'firebase'}
                       value={form.lessonId}
                       onChange={(e) => change('lessonId', e.target.value)}
                     >
@@ -279,37 +284,46 @@ export function QuestionEditor({
                     </h3>
                     <Field
                       label="Text to read aloud"
-                      hint="Used for speech playback when an audio file is not supplied."
+                      hint={
+                        api.mode === 'firebase'
+                          ? 'Listening uses text-to-speech in this stage.'
+                          : 'Used for speech playback when an audio file is not supplied.'
+                      }
                     >
                       <textarea
                         value={form.audioText}
                         onChange={(e) => change('audioText', e.target.value)}
                         rows={3}
                         maxLength={5000}
+                        required={api.mode === 'firebase' && form.status === 'published'}
                       />
                     </Field>
-                    <Field label="HTTPS audio URL">
-                      <input
-                        type="url"
-                        placeholder="https://…"
-                        value={form.audioUrl.startsWith('data:') ? '' : form.audioUrl}
-                        onChange={(e) => change('audioUrl', e.target.value)}
-                      />
-                    </Field>
-                    <Field
-                      label="Upload audio"
-                      hint="Local demo only · max. 2 MB. Real uploads will need backend storage integration."
-                    >
-                      <input
-                        type="file"
-                        accept="audio/*"
-                        disabled={readingFile}
-                        onChange={(e) => {
-                          void upload(e.target.files?.[0])
-                          e.target.value = ''
-                        }}
-                      />
-                    </Field>
+                    {api.mode === 'demo' && (
+                      <>
+                        <Field label="HTTPS audio URL">
+                          <input
+                            type="url"
+                            placeholder="https://…"
+                            value={form.audioUrl.startsWith('data:') ? '' : form.audioUrl}
+                            onChange={(e) => change('audioUrl', e.target.value)}
+                          />
+                        </Field>
+                        <Field
+                          label="Upload audio"
+                          hint="Local demo only · max. 2 MB. Real uploads will need backend storage integration."
+                        >
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            disabled={readingFile}
+                            onChange={(e) => {
+                              void upload(e.target.files?.[0])
+                              e.target.value = ''
+                            }}
+                          />
+                        </Field>
+                      </>
+                    )}
                     {form.audioUrl && (
                       <div className="audio-preview">
                         <Music2 size={16} />
@@ -452,7 +466,11 @@ export function QuestionEditor({
         )}
         <div className="modal-footer">
           <span className="muted small-text">
-            {readingFile ? 'Reading audio file…' : 'Changes apply to local demo data only.'}
+            {readingFile
+              ? 'Reading audio file…'
+              : api.mode === 'firebase'
+                ? 'Saving creates an immutable version for future sessions.'
+                : 'Changes apply to local demo data only.'}
           </span>
           <button className="btn" type="button" disabled={busy || readingFile} onClick={close}>
             Cancel

@@ -304,7 +304,7 @@ function AdminWorkspace({
           <div className="sidebar-bottom">
             <span className="system-status">
               <i />
-              {api.mode === 'demo' ? 'Demo services ready' : 'Firebase · Users & profile'}
+              {api.mode === 'demo' ? 'Demo services ready' : 'Firebase · Users & content'}
             </span>
             <button className="sidebar-account" onClick={() => setPanel('profile')}>
               <Avatar name={name} />
@@ -336,7 +336,7 @@ function AdminWorkspace({
               title={
                 api.mode === 'demo'
                   ? 'Demo workspace · Local sample data · No live admin data'
-                  : 'Firebase data · Profile and user management'
+                  : 'Firebase data · Profile, users and learning content'
               }
               onClick={() => setPanel('help')}
             >
@@ -592,7 +592,7 @@ function AdminWorkspace({
       {panel === 'help' && api.mode === 'firebase' && (
         <Modal
           title="Firebase workspace"
-          subtitle="Profile and user management"
+          subtitle="Profile, users and learning content"
           onClose={() => setPanel(null)}
         >
           <div className="modal-body prose">
@@ -600,8 +600,12 @@ function AdminWorkspace({
               Profile and Users read and update Firebase accounts. Rating and coins are read only.
             </p>
             <p>
-              Dashboard, content, battles, analytics, notifications, search, audit browsing and
-              export will be connected in the next steps. They currently report unavailable.
+              Content manages skills, topics, lessons and versioned questions in Firebase. Listening
+              uses text-to-speech. Existing session snapshots are preserved.
+            </p>
+            <p>
+              Dashboard, battles, analytics, notifications, search, audit browsing and export will
+              be connected in the next steps. They currently report unavailable.
             </p>
             <p>
               New accounts receive a Firebase password setup email. Check the invitation status

@@ -10,7 +10,7 @@
     "adminReports": {".indexOn": ["expiresAt"]},
     "adminUserIndex": {".indexOn": ["nameKey", "emailKey", "createdAt", "updatedAt", "status"]},
     "adminInvitations": {".indexOn": ["dueAt", "cleanupAt"]},
-    "adminQuestionIndex": {".indexOn": ["textKey", "updatedAt", "status", "categoryId", "lessonId"]},
+    "adminQuestionIndex": {".indexOn": ["searchKey", "updatedAt", "status", "categoryId", "lessonId"]},
     "adminBattleIndex": {".indexOn": ["startedAt", "status", "mode", "categoryId"]},
     "adminActivityIndex": {".indexOn": ["at", "type", "categoryId"]},
     "adminNotifications": {"$uid": {".indexOn": ["at", "read"]}},
@@ -35,6 +35,7 @@
       ".indexOn": ["status", "categoryId"],
       ".read": "auth != null && root.child('accountAccess').child(auth.uid).child('status').val() === 'active' && query.orderByChild === 'status' && query.equalTo === 'published'"
     },
+    "questions": {".indexOn": ["topicId", "lessonId", "status", "updatedAt"]},
     "accountAccess": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid"

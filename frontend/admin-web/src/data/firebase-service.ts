@@ -1,8 +1,12 @@
 import type {
   AdminProfile,
   AdminService,
+  Catalog,
+  ContentInput,
   ListQuery,
   Page,
+  QuestionInput,
+  QuestionRecord,
   UserInput,
   UserRecord,
   UserStatus,
@@ -49,6 +53,17 @@ function describe(error: unknown): Error {
     'email-already-exists': 'Email này đã thuộc về tài khoản khác.',
     'account-deleted': 'Tài khoản đã xóa không thể mở lại hoặc chỉnh sửa.',
     'user-index-not-ready': 'Danh sách người dùng đang được chuẩn bị. Thử lại sau ít giây.',
+    'question-index-not-ready': 'Danh sách câu hỏi đang được chuẩn bị. Thử lại sau ít giây.',
+    'invalid-content-relation': 'Kỹ năng, chủ đề và bài học phải thuộc cùng một nhánh nội dung.',
+    'parent-not-published':
+      'Xuất bản kỹ năng, chủ đề và bài học cha trước khi xuất bản nội dung này.',
+    'content-has-children': 'Không thể chuyển nội dung đã có bài học hoặc câu hỏi sang nhánh khác.',
+    'idioms-belongs-to-vocabulary': 'Idioms & Phrases phải thuộc Vocabulary.',
+    'duplicate-content-title': 'Tên nội dung đã tồn tại trong cùng cấp cha.',
+    'invalid-published-question': 'Câu hỏi chưa đáp ứng điều kiện để sử dụng trong ứng dụng.',
+    'invalid-stored-content': 'Dữ liệu câu hỏi hiện có cần được kiểm tra trên server.',
+    'unsupported-audio-content':
+      'Nội dung nghe hiện tại chưa hỗ trợ chỉnh sửa; giai đoạn này chỉ dùng TTS.',
     'snapshot-expired':
       'Danh sách đã hết hạn hoặc thay đổi sau khi xóa tài khoản. Làm mới danh sách.',
     'external-outcome-unknown':
@@ -99,7 +114,14 @@ export class FirebaseAdminService implements AdminService {
           record?.lane &&
           record.key &&
           record.payload?.requestId &&
-          ['adminUpdateProfile', 'adminSaveUser', 'adminSetUserStatus'].includes(record.action)
+          [
+            'adminUpdateProfile',
+            'adminSaveUser',
+            'adminSetUserStatus',
+            'adminSaveContent',
+            'adminSaveQuestion',
+            'adminArchiveQuestion',
+          ].includes(record.action)
         )
           this.pending.set(record.lane, record)
     } catch {
@@ -287,12 +309,95 @@ export class FirebaseAdminService implements AdminService {
     }
   }
   overview: AdminService['overview'] = unavailable
-  questions: AdminService['questions'] = unavailable
-  question: AdminService['question'] = unavailable
-  saveQuestion: AdminService['saveQuestion'] = unavailable
-  archiveQuestion: AdminService['archiveQuestion'] = unavailable
-  catalog: AdminService['catalog'] = unavailable
-  saveContent: AdminService['saveContent'] = unavailable
+  catalog = async () => (await this.read('adminGetCatalog', {})).catalog as Catalog
+  saveContent = async (input: ContentInput, revision = input.revision) => {
+    await this.mutate(
+      'adminSaveContent',
+      {
+        input: {
+          kind: input.kind,
+          title: input.title,
+          description: input.description,
+          status: input.status,
+          ...(input.id ? { id: input.id } : {}),
+          ...(input.categoryId ? { categoryId: input.categoryId } : {}),
+          ...(input.topicId ? { topicId: input.topicId } : {}),
+          ...(input.difficulty ? { difficulty: input.difficulty } : {}),
+        },
+        ...(input.id ? { expectedRevision: this.revision(revision) } : {}),
+      },
+      `${input.kind}:${input.id || 'new'}`,
+    )
+  }
+  question = async (id: string) =>
+    (await this.read('adminGetQuestion', { id })).question as QuestionRecord
+  saveQuestion = async (input: QuestionInput, id?: string, expectedVersion?: number) => {
+    if (input.audioUrl)
+      throw new Error(
+        'Nội dung nghe giai đoạn này chỉ hỗ trợ TTS. Bỏ URL/file audio trước khi lưu.',
+      )
+    if (id && (!Number.isSafeInteger(expectedVersion) || Number(expectedVersion) < 1))
+      throw new Error('Mở lại câu hỏi để lấy phiên bản hiện tại trước khi lưu.')
+    return (
+      await this.mutate(
+        'adminSaveQuestion',
+        {
+          input: {
+            categoryId: input.categoryId,
+            topicId: input.topicId,
+            lessonId: input.lessonId,
+            prompt: input.prompt,
+            options: input.options.map(({ id: optionId, text }) => ({ id: optionId, text })),
+            correctOptionId: input.correctOptionId,
+            explanation: input.explanation,
+            passage: input.passage,
+            audioUrl: '',
+            audioText: input.audioText,
+            difficulty: input.difficulty,
+            status: input.status,
+          },
+          ...(id ? { id, expectedVersion } : {}),
+        },
+        id || 'new',
+      )
+    ).question as QuestionRecord
+  }
+  archiveQuestion = async (id: string, expectedVersion: number) => {
+    await this.mutate('adminArchiveQuestion', { id, expectedVersion }, id)
+  }
+  questions = async (query: ListQuery): Promise<Page<QuestionRecord>> => {
+    const generation = this.generation,
+      page = query.page || 1
+    const filters = {
+      pageSize: query.pageSize || 10,
+      ...(query.q?.trim() ? { q: query.q.trim() } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(query.difficulty ? { difficulty: query.difficulty } : {}),
+    }
+    const key = stable(['questions', filters])
+    let snapshotId = this.snapshots.get(key)
+    let first: (Page<QuestionRecord> & { snapshotId: string }) | undefined
+    if (!snapshotId) {
+      first = (await this.read('adminListQuestions', { query: { ...filters, page: 1 } }))
+        .page as typeof first
+      if (generation !== this.generation) throw new Error('Danh sách đang được làm mới.')
+      snapshotId = first!.snapshotId
+      this.snapshots.set(key, snapshotId)
+    }
+    try {
+      const value =
+        page === 1 && first
+          ? first
+          : ((await this.read('adminListQuestions', { query: { ...filters, page, snapshotId } }))
+              .page as Page<QuestionRecord>)
+      if (generation !== this.generation) throw new Error('Danh sách đang được làm mới.')
+      return value
+    } catch (error) {
+      this.snapshots.delete(key)
+      throw error
+    }
+  }
   battles: AdminService['battles'] = unavailable
   battle: AdminService['battle'] = unavailable
   activities: AdminService['activities'] = unavailable

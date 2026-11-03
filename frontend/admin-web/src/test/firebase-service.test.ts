@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { FirebaseAdminService, type AdminTransport } from '../data/firebase-service'
-import type { UserRecord } from '../domain'
+import type { QuestionInput, UserRecord } from '../domain'
 
 const user: UserRecord = {
   id: 'uid_1',
@@ -225,5 +225,114 @@ describe('Firebase admin adapter', () => {
     expect(listener).not.toHaveBeenCalled()
     expect(JSON.parse(sessionStorage.getItem('english-battle.admin.pending.admin_1')!)).toEqual([])
     window.removeEventListener('admin:access-denied', listener)
+  })
+  it('sends content revision outside an allowlisted DTO and derives lesson category on the server', async () => {
+    const transport = vi.fn<AdminTransport>().mockResolvedValue({})
+    const service = new FirebaseAdminService('admin_1', transport, sessionStorage)
+    await service.saveContent({
+      kind: 'lesson',
+      id: 'lesson_1',
+      topicId: 'topic_1',
+      title: 'Lesson',
+      description: '',
+      difficulty: 'easy',
+      status: 'draft',
+      revision: 4,
+    })
+    expect(transport.mock.calls[0][1]).toMatchObject({
+      expectedRevision: 4,
+      input: { kind: 'lesson', id: 'lesson_1', topicId: 'topic_1', title: 'Lesson' },
+    })
+    expect((transport.mock.calls[0][1].input as Record<string, unknown>).revision).toBeUndefined()
+    expect((transport.mock.calls[0][1].input as Record<string, unknown>).categoryId).toBeUndefined()
+  })
+  it('keeps question requestId/version/payload across timeout and reload without reading a newer version', async () => {
+    const input: QuestionInput = {
+      categoryId: 'vocabulary',
+      topicId: 'topic_1',
+      lessonId: 'lesson_1',
+      prompt: 'Question',
+      options: ['a', 'b', 'c', 'd'].map((id) => ({ id, text: id })),
+      correctOptionId: 'a',
+      explanation: 'A is correct',
+      passage: '',
+      audioUrl: '',
+      audioText: '',
+      difficulty: 'easy',
+      status: 'published',
+    }
+    const transport = vi
+      .fn<AdminTransport>()
+      .mockRejectedValueOnce(failed('deadline-exceeded'))
+      .mockResolvedValue({ question: { version: 3 } })
+    const first = new FirebaseAdminService('admin_1', transport, sessionStorage)
+    await expect(first.saveQuestion(input, 'question_1', 2)).rejects.toThrow()
+    const restored = new FirebaseAdminService('admin_1', transport, sessionStorage)
+    await restored.restorePending()
+    expect(transport.mock.calls[0]).toEqual(transport.mock.calls[1])
+    expect(transport.mock.calls[0][1].expectedVersion).toBe(2)
+    expect(transport.mock.calls.every(([action]) => action === 'adminSaveQuestion')).toBe(true)
+    await expect(
+      restored.saveQuestion({ ...input, audioUrl: 'https://example.test/a.mp3' }),
+    ).rejects.toThrow(/TTS/)
+  })
+  it('paginates questions via a separately bound server snapshot and never loads all source rows', async () => {
+    const transport = vi
+      .fn<AdminTransport>()
+      .mockResolvedValue({ page: { ...page([]), snapshotId: 'question_snapshot' } })
+    const service = new FirebaseAdminService('admin_1', transport)
+    await service.users({ q: 'sample' })
+    await service.questions({
+      q: 'sample',
+      categoryId: 'reading',
+      difficulty: 'hard',
+      page: 3,
+      pageSize: 20,
+    })
+    expect(transport.mock.calls[1]).toEqual([
+      'adminListQuestions',
+      {
+        query: {
+          q: 'sample',
+          categoryId: 'reading',
+          difficulty: 'hard',
+          pageSize: 20,
+          page: 1,
+        },
+      },
+    ])
+    expect(transport.mock.calls[2]).toEqual([
+      'adminListQuestions',
+      {
+        query: {
+          q: 'sample',
+          categoryId: 'reading',
+          difficulty: 'hard',
+          pageSize: 20,
+          page: 3,
+          snapshotId: 'question_snapshot',
+        },
+      },
+    ])
+    expect(transport).toHaveBeenCalledTimes(3)
+  })
+  it('reports content parent publication errors and keeps the original form revision', async () => {
+    const transport = vi
+      .fn<AdminTransport>()
+      .mockRejectedValue(failed('failed-precondition', 'parent-not-published'))
+    const service = new FirebaseAdminService('admin_1', transport, sessionStorage)
+    await expect(
+      service.saveContent({
+        kind: 'topic',
+        id: 'topic_1',
+        categoryId: 'reading',
+        title: 'Topic',
+        description: '',
+        status: 'published',
+        revision: 7,
+      }),
+    ).rejects.toThrow(/Xuất bản/)
+    expect(transport.mock.calls[0][1].expectedRevision).toBe(7)
+    expect(JSON.parse(sessionStorage.getItem('english-battle.admin.pending.admin_1')!)).toEqual([])
   })
 })

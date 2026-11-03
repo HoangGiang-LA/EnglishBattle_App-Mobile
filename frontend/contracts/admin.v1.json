@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "revision": "2026-11-03-users",
-  "implementation": "Profile/User business handlers implemented; remaining 15 callables are guarded and unimplemented",
-  "implementedCallables": ["adminGetProfile", "adminUpdateProfile", "adminListUsers", "adminGetUser", "adminSaveUser", "adminSetUserStatus"],
+  "revision": "2026-11-03-content",
+  "implementation": "Profile/User/Catalog/Question business handlers implemented; remaining 9 callables are guarded and unimplemented",
+  "implementedCallables": ["adminGetProfile", "adminUpdateProfile", "adminListUsers", "adminGetUser", "adminSaveUser", "adminSetUserStatus", "adminGetCatalog", "adminSaveContent", "adminListQuestions", "adminGetQuestion", "adminSaveQuestion", "adminArchiveQuestion"],
   "schemas": "admin.schemas.v1.json",
   "schemaReference": "For callable X, use #/$defs/XRequest and #/$defs/XResponse in schemas",
   "runtimeSource": "../../Backend/functions/src/admin/contracts.ts",
@@ -37,7 +37,10 @@
   },
   "mapping": {
     "questionVersion": "Admin integer 1 corresponds to RTDB currentVersion v1; immutable questionVersions/id/v1 and questionAnswers/id/v1",
-    "options": "Admin array of {id,text} maps to RTDB keyed options {optionId:{text,order}}",
+    "options": "Four stable IDs beginning with a letter or underscore; array maps to RTDB keyed options {optionId:{text,order:1..4}}",
+    "contentPublication": "Draft/archived ancestors gate new session selection; descendant statuses and existing snapshots are retained",
+    "questionArchive": "Archive creates a new integer version as well; stale saves cannot republish using the previous expectedVersion",
+    "listening": "TTS audioText only; audioUrl must be empty; file uploads are deferred",
     "ongoingBattle": "Public admin status ongoing maps from authoritative playing/reconnecting states; do not expose pending opponent answers",
     "privateContent": "Admin question/answer payloads are returned only by authorized API, not public catalog reads",
     "pagination": "Page numbers require bounded server snapshots/indexes; response page includes snapshotId, expiresAt, nextCursor; do not download the root",

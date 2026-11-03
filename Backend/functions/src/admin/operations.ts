@@ -311,7 +311,7 @@ export class AdminOperations {
       const code = known ? error.code : "unavailable";
       const reason = known ? (error.details as Data | undefined)?.reason : undefined;
       const terminalError = ["invalid-argument", "already-exists", "not-found", "permission-denied",
-        "unauthenticated", "failed-precondition"].includes(code);
+        "unauthenticated", "failed-precondition", "resource-exhausted"].includes(code);
       const failed = await transactionWithRetry(ref, (current: AdminOperation | null) => {
         if (!current) return current;
         if (current?.owner !== owner || current.phase !== "running") return;
@@ -321,7 +321,10 @@ export class AdminOperations {
         return {...current, phase: blocked ? "blocked" : terminalError ? "failed" : "pending",
           errorCode: code, failureReason: uncertain && !(error instanceof SafeOperationError) ? "external-outcome-unknown" :
             ["version-conflict", "session-revoked", "last-active-admin", "account-deleted",
-              "email-already-exists", "admin-self-protection", "invitation-busy"].includes(String(reason)) ? reason :
+              "email-already-exists", "admin-self-protection", "invitation-busy", "invalid-content-relation",
+              "parent-not-published", "idioms-belongs-to-vocabulary", "content-has-children",
+              "duplicate-content-title", "invalid-published-question", "invalid-stored-content",
+              "immutable-version-conflict", "unsupported-audio-content"].includes(String(reason)) ? reason :
               blocked ? "partial-operation-needs-review" : "operation-rejected",
           completedAt: terminalError || blocked ? Date.now() : null,
           owner: null, leaseUntil: null, dueAt: Date.now() + (terminalError || blocked ? 0 : 2000)};

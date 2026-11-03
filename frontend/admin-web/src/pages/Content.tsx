@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Archive, BookOpen, Pencil, Plus, SlidersHorizontal } from 'lucide-react'
 import { useAdmin } from '../context'
 import { useDebounced, useResource } from '../hooks'
@@ -40,6 +40,24 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
       [q, category, status, difficulty, page, size],
     ),
     catalog = useResource(() => api.catalog())
+  const opening = useRef(0)
+  useEffect(
+    () => () => {
+      opening.current++
+    },
+    [tab, q, category, status, difficulty, page, size],
+  )
+  const openQuestion = async (question: QuestionRecord, archive = false) => {
+    const generation = ++opening.current
+    try {
+      const current = await api.question(question.id)
+      if (generation !== opening.current) return
+      if (archive) setArchive(current)
+      else setEditor(current)
+    } catch (error) {
+      if (generation === opening.current) toast(message(error), true)
+    }
+  }
   const exportReport = async () => {
     setExporting(true)
     try {
@@ -156,6 +174,7 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
                     title: '',
                     description: '',
                     status: 'draft',
+                    ...(tab === 'lessons' ? { difficulty: 'easy' as const } : {}),
                     categoryId: (category as SkillId) || 'vocabulary',
                     topicId:
                       catalog.data?.topics.find((t) => t.categoryId === (category || 'vocabulary'))
@@ -271,7 +290,7 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
                         <td>
                           <button
                             className="question-link"
-                            onClick={() => setEditor(question)}
+                            onClick={() => void openQuestion(question)}
                             title={question.prompt}
                           >
                             {question.prompt}
@@ -294,7 +313,7 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
                             <button
                               className="icon-btn"
                               aria-label={`Edit ${question.code}`}
-                              onClick={() => setEditor(question)}
+                              onClick={() => void openQuestion(question)}
                             >
                               <Pencil size={15} />
                             </button>
@@ -302,7 +321,7 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
                               className="icon-btn danger"
                               aria-label={`Archive ${question.code}`}
                               disabled={question.status === 'archived'}
-                              onClick={() => setArchive(question)}
+                              onClick={() => void openQuestion(question, true)}
                             >
                               <Archive size={15} />
                             </button>
@@ -407,8 +426,8 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
       )}
       <p className="metrics-note">
         <BookOpen size={13} />
-        Question edits create a new version in this demo. Archived content stays available for
-        historical references.
+        Question edits create a new version. Archived content stays available for historical
+        references.
       </p>
       {editor && (
         <QuestionEditor
@@ -437,8 +456,8 @@ function ArchiveDialog({ question, onClose }: { question: QuestionRecord; onClos
       <div className="modal-body">
         <p>{question.prompt}</p>
         <p className="info-note">
-          This question will no longer be available for new sessions. Its previous version is
-          retained in the local demo history.
+          This question will no longer be available for new sessions. Existing sessions and previous
+          versions are preserved.
         </p>
         <FormError error={error} />
       </div>
@@ -453,7 +472,11 @@ function ArchiveDialog({ question, onClose }: { question: QuestionRecord; onClos
             setBusy(true)
             try {
               await api.archiveQuestion(question.id, question.version)
-              toast('Question archived in the demo workspace.')
+              toast(
+                api.mode === 'demo'
+                  ? 'Question archived in the demo workspace.'
+                  : 'Question archived in Firebase.',
+              )
               onClose()
             } catch (e) {
               setError(message(e))
@@ -487,7 +510,9 @@ function ContentEditor({ input, onClose }: { input: ContentInput; onClose: () =>
   return (
     <Modal
       title={`${form.id ? 'Edit' : 'Add'} ${kind}`}
-      subtitle="Learning content · local preview"
+      subtitle={
+        api.mode === 'demo' ? 'Learning content · local preview' : 'Learning content · Firebase'
+      }
       onClose={close}
       busy={busy}
     >
@@ -498,8 +523,10 @@ function ContentEditor({ input, onClose }: { input: ContentInput; onClose: () =>
           setBusy(true)
           setError('')
           try {
-            await api.saveContent(form)
-            toast(`${kind[0].toUpperCase() + kind.slice(1)} saved in the demo workspace.`)
+            await api.saveContent(form, input.revision)
+            toast(
+              `${kind[0].toUpperCase() + kind.slice(1)} saved in ${api.mode === 'demo' ? 'the demo workspace' : 'Firebase'}.`,
+            )
             onClose()
           } catch (e) {
             setError(message(e))
@@ -591,6 +618,12 @@ function ContentEditor({ input, onClose }: { input: ContentInput; onClose: () =>
               ))}
             </select>
           </Field>
+          {api.mode === 'firebase' && (
+            <p className="info-note">
+              Draft or archived parents block new sessions. Child statuses and existing session
+              snapshots are preserved.
+            </p>
+          )}
           <FormError error={error} />
         </div>
         <div className="modal-footer">

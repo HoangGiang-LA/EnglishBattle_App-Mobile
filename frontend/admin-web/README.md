@@ -1,6 +1,6 @@
 # English Battle — Web admin
 
-Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. **Mặc định Profile và Users dùng Firebase thật qua 6 callable admin.** Các nhóm còn lại báo chưa triển khai, không trả dữ liệu mẫu. Bố cục 5 trang được giữ lại.
+Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. **Mặc định Profile, Users và Content dùng Firebase qua 12 callable admin.** Các nhóm còn lại báo chưa triển khai, không trả dữ liệu mẫu. Bố cục 5 trang được giữ lại.
 
 ## Chạy trên máy của bạn
 
@@ -46,7 +46,8 @@ Giao diện dùng tiếng Anh như 5 ảnh thiết kế. Font Inter và icon đ�
 - Rating/xu chỉ đọc. Không cấp custom claim từ web. Chặn tự ban/delete và bảo vệ admin cuối cùng cùng công cụ server.
 - Lưu requestId/payload theo UID trong sessionStorage trước khi gửi; khôi phục phiên thử lại đúng intent cũ để xác minh sau timeout/reload. Lỗi giữ dữ liệu form, version conflict yêu cầu đọc lại.
 - User đang có operation dở chỉ được xem. Deleted ẩn danh, giữ kết quả/grant/ledger hợp lệ. Không có nút reset dữ liệu thật.
-- Các nhóm Dashboard/Content/Battles/Analytics/search/notification/audit browsing/export hiện báo chưa triển khai. Xem [backend Bước 2](../../Backend/functions/ADMIN-USERS.md) cho giới hạn, email và phục hồi.
+- Content: quản lý 4 kỹ năng, topic/lesson có revision; câu hỏi có expectedVersion, tạo version bất biến và archive. Listening thật chỉ dùng TTS, lesson là bắt buộc; UI ẩn URL/upload.
+- Các nhóm Dashboard/Battles/Analytics/search/notification/audit browsing/export hiện báo chưa triển khai. Xem [backend Bước 2](../../Backend/functions/ADMIN-USERS.md) và [Bước 3](../../Backend/functions/ADMIN-CONTENT.md) cho quy tắc, giới hạn và phục hồi.
 
 ## Chế độ demo để xem thiết kế
 
@@ -83,7 +84,7 @@ src/
   domain.ts            # Model và hợp đồng AdminService cho tích hợp sau
   context.ts           # Service, ngày chọn và thông báo dùng chung
   data/
-    firebase-service.ts # Adapter Profile/Users thật; giữ nonce/revision/snapshot và lỗi
+    firebase-service.ts # Adapter Profile/Users/Content thật; giữ requestId/revision/version/snapshot và lỗi
     mock-service.ts    # Mô phỏng có kiểm tra dữ liệu, lưu và nhật ký
     metrics.ts         # Tính KPI từ dữ liệu mẫu
     seed.ts            # Khởi tạo người dùng/trận/hoạt động mẫu
@@ -96,7 +97,7 @@ docs/design-reference/ # 5 ảnh thiết kế do người dùng cung cấp
 docs/qa/               # Ảnh chụp app từ kiểm thử trình duyệt
 ```
 
-Nghiệm thu Profile/Users với SDK thật nối Emulator riêng: chạy `npm.cmd run test:admin:web` trong `Backend/functions`. Launcher dùng project `demo-englishbattle-admin`, web 15173, HTTP 18180 và Auth/Database/Functions 19299/19200/15003, không đọc credential thật. Bộ `npm.cmd run test:e2e` thông thường kiểm tra demo desktop/mobile ở cổng riêng 15174.
+Nghiệm thu Profile/Users/Content với SDK thật nối Emulator riêng: chạy `npm.cmd run test:admin:web` trong `Backend/functions`. Launcher dùng project `demo-englishbattle-admin`, web 15173, HTTP 18180 và Auth/Database/Functions 19299/19200/15003, không đọc credential thật. Bộ `npm.cmd run test:e2e` thông thường kiểm tra demo desktop/mobile ở cổng riêng 15174. Artifact của hai bộ nằm riêng trong `test-results/firebase` và `test-results/demo`.
 
 `tools/refresh-demo-content.ps1` chỉ đọc seed trong repository và ghi lại snapshot cho frontend admin; không kết nối Firebase hoặc sửa backend:
 

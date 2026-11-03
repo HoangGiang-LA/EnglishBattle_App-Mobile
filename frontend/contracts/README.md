@@ -5,7 +5,7 @@
 - `admin.v1.json`: ánh xạ 21 callable admin và một `reset` chỉ dùng demo, giới hạn và mã lỗi. `admin.schemas.v1.json` chứa JSON Schema request/response của đủ 21 API; được xuất từ `Backend/functions/src/admin/contracts.ts`. Wire DTO đã bổ sung revision, operation ID, snapshot và phân trang audit/thông báo. Adapter Profile/Users đã nối UI; các nhóm còn lại nối theo các bước tiếp theo.
 - `database.rules.proposed.json`: Rules client để kiểm thử bằng emulator, **chưa deploy**.
 
-Giữ nguyên UI theo Figma. Từ 03/11/2026, 6 callable Profile/Users đã có nghiệp vụ thật và adapter web Firebase. 15 callable còn lại đã được export qua guard/schema/rate limit chung và trả `unimplemented`; web không fallback sang mock. Xem `Backend/functions/ADMIN-USERS.md` cho bảo vệ admin cuối cùng, operation, revision, email và QA.
+Giữ nguyên UI theo Figma. Từ 03/11/2026, 12 callable Profile/Users/Catalog/Questions đã có nghiệp vụ thật và adapter web Firebase. 9 callable còn lại đã được export qua guard/schema/rate limit chung và trả `unimplemented`; web không fallback sang mock. Xem `Backend/functions/ADMIN-USERS.md` và `ADMIN-CONTENT.md` cho operation, revision/version, quan hệ nội dung, TTS và QA.
 
 ## Quy tắc đã xác nhận ngày 25/10/2026
 
