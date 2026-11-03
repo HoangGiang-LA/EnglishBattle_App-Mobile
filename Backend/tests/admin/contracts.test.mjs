@@ -74,6 +74,13 @@ test('nested response allowlists hide raw source records, credentials and unpubl
   value.detail.battle.selections = {opponent: 'a'}
   assert.throws(() => output('adminGetBattle', value))
   assert.throws(() => output('adminGetOverview', {...responses.adminGetOverview, overview: {...responses.adminGetOverview.overview, ready: false}}))
+  for (const denominators of [{answered: 10, correct: 11, started: 1, completed: 1},
+    {answered: null, correct: 0, started: 1, completed: 1}, {answered: 10, correct: 8, started: 1, completed: 2}]) {
+    assert.throws(() => output('adminGetOverview', {...responses.adminGetOverview,
+      overview: {...responses.adminGetOverview.overview, denominators}}))
+  }
+  assert.throws(() => output('adminGetOverview', {...responses.adminGetOverview,
+    overview: {...responses.adminGetOverview.overview, accuracy: 101}}))
   const report = {...responses.adminExportReport.report, rows: Array.from({length: 5001}, () => ['id'])}
   assert.throws(() => output('adminExportReport', {...responses.adminExportReport, report}))
   assert.throws(() => output('adminExportReport', {...responses.adminExportReport,

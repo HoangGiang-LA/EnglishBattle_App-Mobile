@@ -21,6 +21,7 @@ async function enter(page: Page) {
   await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible()
   await page.getByRole('navigation').getByRole('link', { name: 'Content', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'All questions', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Edit Q/ }).first()).toBeVisible()
 }
 test.beforeEach(async () => {
   await auth.setCustomUserClaims(adminUid, { admin: true })

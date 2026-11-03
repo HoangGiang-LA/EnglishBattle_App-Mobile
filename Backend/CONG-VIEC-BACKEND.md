@@ -124,10 +124,11 @@ Mọi response có `serverNow` theo epoch milliseconds. Kiểu trường, bắt 
 
 ## 2. Backend phía admin
 
-Mốc 03/11/2026: nền tảng API và Bước 2–4 đã triển khai, kiểm thử local/Emulator;
+Mốc 03/11/2026: nền tảng API và Bước 2–5 đã triển khai, kiểm thử local/Emulator;
 chưa deploy production hoặc kiểm chứng email/Android thiết bị thật. Chi tiết và biên bản:
 [`functions/ADMIN.md`](functions/ADMIN.md), [`functions/ADMIN-USERS.md`](functions/ADMIN-USERS.md),
 [`functions/ADMIN-CONTENT.md`](functions/ADMIN-CONTENT.md), [`functions/ADMIN-MONITORING.md`](functions/ADMIN-MONITORING.md).
+Dashboard/Analytics và quy tắc số liệu: [`functions/ADMIN-ANALYTICS.md`](functions/ADMIN-ANALYTICS.md).
 Các dấu hoàn thành dưới đây chỉ áp dụng cho mốc local/Emulator này.
 
 ### 2.1. Xác thực và phân quyền
@@ -141,12 +142,12 @@ Các dấu hoàn thành dưới đây chỉ áp dụng cho mốc local/Emulator 
 
 ### 2.2. Dashboard và Analytics
 
-- [ ] Tổng hợp total users, active users, số trận/bài hoàn tất, hoạt động gần đây và biểu đồ theo đúng bộ lọc.
-- [ ] Active users là số UID khác nhau có hoạt động hợp lệ trong kỳ; trận đấu phải tính đủ cả hai người, loại sự kiện lặp.
-- [ ] Thống nhất mốc bắt đầu/kết thúc hoạt động, múi giờ và khoảng ngày gồm cả ngày cuối; xử lý dữ liệu đến muộn.
-- [ ] So sánh kỳ trước có cùng độ dài; mẫu số 0 trả `null`/N/A đúng model, không tạo phần trăm giả.
-- [ ] Accuracy tính tổng đúng/tổng câu tương ứng, không lấy trung bình phần trăm của các phiên tùy ý.
-- [ ] Tạo view/index tổng hợp dựng lại được từ dữ liệu nguồn; không tải root RTDB vào trình duyệt để tính.
+- [x] Dashboard/Analytics dùng adminGetOverview: tài khoản/Auth, phiên học, room và summary thật; công bố asOf/lag/coverage.
+- [x] Active là union UID theo timestamp thực; trận một room cho KPI, hai UID cho hoạt động; mixed-skill theo snapshot câu thực.
+- [x] Ngày Việt Nam gồm ngày cuối, bucket lịch ngày/tuần/tháng; cohort completion theo phiên bắt đầu trong kỳ, không gán start cho lịch sử thiếu.
+- [x] Kỳ trước cùng số ngày lịch; mẫu số 0 hoặc dữ liệu tỷ lệ không đủ trả null/N/A/lỗi rõ.
+- [x] Accuracy tổng đúng/tổng slot đã phân xử trong các phiên terminal của kỳ, gồm abandoned có câu đã trả lời.
+- [x] Backfill phân trang, checkpoint/lease, receipt chống lặp; generation riêng và publish pointer nguyên tử, giữ bản cũ khi lỗi; không tải source root về web.
 - [ ] Xuất báo cáo có cùng bộ lọc với trang; chặn CSV formula injection và giới hạn kích thước/thời gian xử lý. Báo cáo lớn dùng job nếu cần.
 
 ### 2.3. Quản lý người dùng
@@ -186,7 +187,8 @@ Các dấu hoàn thành dưới đây chỉ áp dụng cho mốc local/Emulator 
 Tên và request cụ thể lấy từ `admin.v1.json` và `admin.schemas.v1.json`; kiểu UI lấy từ
 `domain.ts`. Cả 21 callable đã có guard/schema; 6 API Profile/Users có nghiệp vụ và
 adapter thật; Bước 3 bổ sung 6 API Catalog/Questions, Bước 4 bổ sung 3 API Battles/Activities.
-Tổng 15/21 có nghiệp vụ; 6 API Bước 5–6 trả `unimplemented`. Mutation có thêm `operationId`.
+Overview của Bước 5 bổ sung Dashboard/Analytics. Tổng 16/21 có nghiệp vụ;
+5 API Bước 6 trả `unimplemented`. Mutation có thêm `operationId`.
 Xem `functions/ADMIN-CONTENT.md` và `functions/ADMIN-MONITORING.md`.
 
 | Callable | Phương thức AdminService | Payload ngoài `serverNow` |

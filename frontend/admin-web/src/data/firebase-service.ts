@@ -8,6 +8,8 @@ import type {
   ContentInput,
   ListQuery,
   Page,
+  Overview,
+  DateRange,
   QuestionInput,
   QuestionRecord,
   UserInput,
@@ -58,6 +60,12 @@ function describe(error: unknown): Error {
     'user-index-not-ready': 'Danh sách người dùng đang được chuẩn bị. Thử lại sau ít giây.',
     'question-index-not-ready': 'Danh sách câu hỏi đang được chuẩn bị. Thử lại sau ít giây.',
     'monitoring-index-not-ready': 'Dữ liệu giám sát đang được tổng hợp. Thử lại sau ít giây.',
+    'overview-not-ready': 'Thống kê đang được tổng hợp đầy đủ. Thử lại sau khi worker hoàn tất.',
+    'overview-stale': 'Thống kê đã quá hạn cập nhật. Kiểm tra worker và thử lại.',
+    'overview-history-incomplete':
+      'Lịch sử trận thiếu dữ liệu nguồn. Cần kiểm tra nguồn trước khi tính thống kê.',
+    'overview-skill-history-incomplete':
+      'Lịch sử chưa đủ thông tin kỹ năng. Chọn All skills hoặc kiểm tra nguồn.',
     'invalid-stored-battle': 'Dữ liệu trận hiện có cần được kiểm tra trên server.',
     'invalid-stored-activity': 'Dữ liệu hoạt động hiện có cần được kiểm tra trên server.',
     'invalid-content-relation': 'Kỹ năng, chủ đề và bài học phải thuộc cùng một nhánh nội dung.',
@@ -314,7 +322,18 @@ export class FirebaseAdminService implements AdminService {
       throw error
     }
   }
-  overview: AdminService['overview'] = unavailable
+  overview = async (
+    range: DateRange,
+    categoryId?: string,
+    granularity: 'day' | 'week' | 'month' = 'day',
+  ) =>
+    (
+      await this.read('adminGetOverview', {
+        range,
+        granularity,
+        ...(categoryId ? { categoryId } : {}),
+      })
+    ).overview as Overview
   catalog = async () => (await this.read('adminGetCatalog', {})).catalog as Catalog
   saveContent = async (input: ContentInput, revision = input.revision) => {
     await this.mutate(

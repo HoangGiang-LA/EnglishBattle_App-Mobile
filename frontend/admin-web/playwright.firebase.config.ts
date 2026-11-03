@@ -2,7 +2,12 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['firebase-users.spec.ts', 'firebase-content.spec.ts', 'firebase-monitoring.spec.ts'],
+  testMatch: [
+    'firebase-users.spec.ts',
+    'firebase-content.spec.ts',
+    'firebase-monitoring.spec.ts',
+    'firebase-analytics.spec.ts',
+  ],
   outputDir: 'test-results/firebase',
   workers: 1,
   fullyParallel: false,

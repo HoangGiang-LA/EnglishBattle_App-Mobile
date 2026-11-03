@@ -28,6 +28,7 @@ const mode = enumeration("quick", "daily", "private");
 const pageId = enumeration("dashboard", "users", "content", "battles", "analytics");
 const email = {...text(254, 3), pattern: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"};
 const nullableNumber = {anyOf: [{type: "number"}, {type: "null"}]};
+const nullableRatio = {anyOf: [{type: "number", minimum: 0, maximum: 100}, {type: "null"}]};
 const mixedSkill = {anyOf: [skill, {const: "mixed"}]};
 const reason = nonempty(500);
 const option = object({id: {...id, pattern: "^[A-Za-z_][A-Za-z0-9_-]{0,127}$"}, text: nonempty(2000)});
@@ -113,12 +114,20 @@ const overview = object({
   }), P.maxRangeDays),
   categories: array(object({
     id: skill, name: text(200), lessons: integer(), battles: integer(),
-    answered: integer(), correct: integer(), completed: integer(), started: integer(),
-  }), 4),
-  accuracy: nullableNumber, completion: nullableNumber,
+    answered: integer(), correct: integer(), completed: integer(), started: integer(), completion: nullableRatio,
+  }, ["id", "name", "lessons", "battles", "answered", "correct", "completed", "started"]), 4),
+  accuracy: nullableRatio, completion: nullableRatio,
   recent: array(ref("activity"), 50), asOf: integer(),
   ready: {const: true}, lagMs: integer(),
-});
+  generation: id, granularity: enumeration("day", "week", "month"), timeZone: {const: "Asia/Ho_Chi_Minh"},
+  denominators: object({answered: {anyOf: [integer(), {type: "null"}]},
+    correct: {anyOf: [integer(), {type: "null"}]}, started: integer(), completed: integer()}),
+  coverage: object({unknownStartSessions: integer(), unclassifiedAnswers: integer(), unknownAnswers: {type: "boolean"},
+    skillBreakdownComplete: {type: "boolean"}, partialPeriod: {type: "boolean"},
+    accountScope: {const: "retained-auth"}, completionBasis: {const: "started-in-period"}}),
+}, ["totalUsers", "newUsers", "activeUsers", "completedBattles", "completedLessons", "growth", "series", "categories",
+  "accuracy", "completion", "recent", "asOf", "ready", "lagMs", "generation", "granularity", "timeZone",
+  "denominators", "coverage"]);
 
 export const adminDefinitions = {
   user, profile, category, topic, lesson, activity, battle, audit, overview,
@@ -334,6 +343,16 @@ export function validateAdminResponse(action: AdminAction, value: unknown): void
     const report = (value as Data).report as {rows: unknown[][]; columns: string[]; total: number};
     if (report.rows.length !== report.total || report.rows.some((row) => row.length !== report.columns.length)) {
       throw new HttpsError("internal", "Incomplete admin report.");
+    }
+  }
+  if (action === "adminGetOverview") {
+    const overview = (value as Data).overview as Data;
+    const d = overview.denominators as {
+      answered: number | null; correct: number | null; started: number; completed: number;
+    };
+    if (d.completed > d.started || (d.answered === null) !== (d.correct === null) ||
+        (d.answered !== null && d.correct! > d.answered)) {
+      throw new HttpsError("internal", "Invalid overview denominators.");
     }
   }
 }

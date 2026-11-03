@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   BookOpen,
   CalendarDays,
+  RefreshCw,
   Swords,
   TrendingDown,
   TrendingUp,
@@ -25,7 +26,23 @@ import {
   RangePicker,
 } from '../components'
 import { dateTime, dayKey, downloadCsv, message, number } from '../lib'
-import type { Activity } from '../domain'
+import type { Activity, DateRange, Overview } from '../domain'
+
+function OverviewFreshness({ value }: { value: Overview }) {
+  if (!value.coverage) return null
+  return (
+    <p className="metrics-note" role="status">
+      Data through {dateTime(value.asOf)} · {Math.ceil((value.lagMs || 0) / 1000)}s lag.
+      {value.coverage.partialPeriod && ' The selected period includes time beyond this update.'}
+      {value.coverage.unknownStartSessions > 0 &&
+        ' Some historical sessions lack a start time; affected completion rates show N/A.'}
+      {!value.coverage.skillBreakdownComplete &&
+        ' Skill breakdown is unavailable for this history.'}
+      {value.coverage.unknownAnswers &&
+        ' Accuracy is unavailable because historical answer counts are incomplete.'}
+    </p>
+  )
+}
 
 function ActivityTable({ rows }: { rows: (Activity & { userName?: string })[] }) {
   const { navigate } = useAdmin()
@@ -76,14 +93,14 @@ function ActivityTable({ rows }: { rows: (Activity & { userName?: string })[] })
     </div>
   )
 }
-export function ActivityDialog({ onClose }: { onClose: () => void }) {
+export function ActivityDialog({ onClose, range }: { onClose: () => void; range?: DateRange }) {
   const { api } = useAdmin(),
     [page, setPage] = useState(1),
     [size, setSize] = useState(10),
     [type, setType] = useState('')
   const activities = useResource(
-    () => api.activities({ page, pageSize: size, status: type }),
-    [page, size, type],
+    () => api.activities({ page, pageSize: size, status: type, ...(range ? { range } : {}) }),
+    [page, size, type, range?.from, range?.to],
   )
   return (
     <Modal
@@ -146,13 +163,17 @@ export function Dashboard() {
     [group, setGroup] = useState('daily'),
     [activitiesOpen, setActivitiesOpen] = useState(false),
     [exporting, setExporting] = useState(false)
-  const overview = useResource(() => api.overview(range), [range.from, range.to])
+  const granularity = group === 'weekly' ? 'week' : group === 'monthly' ? 'month' : 'day'
+  const overview = useResource(
+    () => api.overview(range, undefined, granularity),
+    [range.from, range.to, granularity],
+  )
   const exportReport = async () => {
     setExporting(true)
     try {
       const report = await api.exportReport('analytics', {}, range)
       downloadCsv(report.filename, report.columns, report.rows)
-      toast('Demo dashboard report downloaded.')
+      toast('Dashboard report downloaded.')
     } catch (e) {
       toast(message(e), true)
     } finally {
@@ -168,6 +189,14 @@ export function Dashboard() {
         </div>
         <div className="page-actions">
           <RangePicker range={range} onChange={setRange} />
+          <button
+            className="btn"
+            aria-label="Refresh statistics"
+            onClick={overview.reload}
+            disabled={overview.loading}
+          >
+            <RefreshCw size={15} />
+          </button>
           <ExportButton onClick={exportReport} busy={exporting} />
         </div>
       </div>
@@ -263,7 +292,11 @@ export function Dashboard() {
                     </div>
                   </div>
                 </div>
-                <GrowthChart series={o.series} group={group} />
+                <GrowthChart
+                  series={o.series}
+                  group={group}
+                  preAggregated={api.mode === 'firebase'}
+                />
               </section>
               <section className="panel activities-panel">
                 <div className="panel-heading">
@@ -281,20 +314,23 @@ export function Dashboard() {
                 ) : (
                   <Empty
                     title="No activity in this period"
-                    description="Choose a wider date range to explore the sample activity."
+                    description="Choose a wider date range to explore activity."
                   />
                 )}
               </section>
+              <OverviewFreshness value={o} />
               <p className="metrics-note">
                 <CalendarDays size={13} />
                 Dates use Asia/Ho_Chi_Minh. Active users are distinct learners with learning or
                 battle activity; total users is the current account count.
+                {api.mode === 'firebase' &&
+                  ` ${number(o.completedLessons)} learning sessions completed. Account totals exclude deleted accounts; growth charts track cumulative registrations.`}
               </p>
             </>
           )
         })()
       )}
-      {activitiesOpen && <ActivityDialog onClose={() => setActivitiesOpen(false)} />}
+      {activitiesOpen && <ActivityDialog range={range} onClose={() => setActivitiesOpen(false)} />}
     </>
   )
 }
@@ -302,14 +338,17 @@ export function Analytics() {
   const { api, range, setRange, toast } = useAdmin(),
     [category, setCategory] = useState(''),
     [exporting, setExporting] = useState(false)
-  const data = useResource(() => api.overview(range, category), [range.from, range.to, category]),
+  const data = useResource(
+      () => api.overview(range, category, 'month'),
+      [range.from, range.to, category],
+    ),
     catalog = useResource(() => api.catalog())
   const exportReport = async () => {
     setExporting(true)
     try {
       const r = await api.exportReport('analytics', { categoryId: category }, range)
       downloadCsv(r.filename, r.columns, r.rows)
-      toast('Demo analytics report downloaded.')
+      toast('Analytics report downloaded.')
     } catch (e) {
       toast(message(e), true)
     } finally {
@@ -355,7 +394,21 @@ export function Analytics() {
           <option value="180">Last 180 days</option>
         </select>
         <span className="toolbar-spacer" />
-        <span className="muted small-text">Sample data · updated locally</span>
+        <span className="muted small-text">
+          {api.mode === 'demo'
+            ? 'Sample data · updated locally'
+            : data.data
+              ? `Updated ${dateTime(data.data.asOf)}`
+              : 'Preparing statistics'}
+        </span>
+        <button
+          className="btn"
+          aria-label="Refresh statistics"
+          onClick={data.reload}
+          disabled={data.loading}
+        >
+          <RefreshCw size={15} />
+        </button>
         <ExportButton primary busy={exporting} onClick={exportReport} />
       </div>
       {data.loading ? (
@@ -390,7 +443,8 @@ export function Analytics() {
                   <ActivityBars series={o.series} />
                   <p className="chart-caption">
                     <BookOpen size={12} />
-                    {number(o.completedLessons)} lessons <span>·</span>
+                    {number(o.completedLessons)}{' '}
+                    {api.mode === 'firebase' ? 'learning sessions' : 'lessons'} <span>·</span>
                     <Swords size={12} />
                     {number(o.completedBattles)} battles
                   </p>
@@ -398,11 +452,22 @@ export function Analytics() {
                 <section className="panel analytics-card">
                   <div className="panel-heading">
                     <div>
-                      <h2>Learning by Skill</h2>
-                      <p>Completed practice across the four learning skills.</p>
+                      <h2>{api.mode === 'firebase' ? 'Answers by Skill' : 'Learning by Skill'}</h2>
+                      <p>
+                        {api.mode === 'firebase'
+                          ? 'Finalized learning and battle answers, including mixed-skill sessions.'
+                          : 'Completed practice across the four learning skills.'}
+                      </p>
                     </div>
                   </div>
-                  <SkillDonut categories={o.categories} />
+                  {o.coverage?.skillBreakdownComplete === false ? (
+                    <Empty title="Skill history is incomplete" />
+                  ) : (
+                    <SkillDonut
+                      categories={o.categories}
+                      basis={api.mode === 'firebase' ? 'answers' : 'lessons'}
+                    />
+                  )}
                   <p className="chart-caption">
                     Accuracy:{' '}
                     <strong>{o.accuracy === null ? 'N/A' : `${o.accuracy.toFixed(1)}%`}</strong>
@@ -415,62 +480,95 @@ export function Analytics() {
                 <div className="panel-heading">
                   <div className="heading-inline">
                     <h2>Most Popular Categories</h2>
-                    <span className="count-chip">{ranked.length} skills</span>
+                    <span className="count-chip">
+                      {o.coverage?.skillBreakdownComplete === false
+                        ? 'Unavailable'
+                        : `${ranked.length} skills`}
+                    </span>
                   </div>
                   <span className="muted small-text">Ranked by battles played</span>
                 </div>
-                <div className="table-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Rank</th>
-                        <th>Category</th>
-                        <th>Battles played</th>
-                        <th>Share of skill-specific battles</th>
-                        <th>Completion rate</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ranked.map((c, i) => (
-                        <tr key={c.id}>
-                          <td className="muted">{String(i + 1).padStart(2, '0')}</td>
-                          <td>
-                            <strong>{c.name}</strong>
-                          </td>
-                          <td>{number(c.battles)}</td>
-                          <td>
-                            <div className="progress-cell">
-                              <span className="progress-track">
-                                <i
-                                  style={{
-                                    width: `${skillBattles ? (c.battles / skillBattles) * 100 : 0}%`,
-                                  }}
-                                />
-                              </span>
-                              <small>
-                                {skillBattles ? Math.round((c.battles / skillBattles) * 100) : 0}%
-                              </small>
-                            </div>
-                          </td>
-                          <td>
-                            {c.started ? `${Math.round((c.completed / c.started) * 100)}%` : 'N/A'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="table-footer">
-                  <span>
-                    {number(skillBattles)} skill-specific battles · mixed-skill matches excluded
-                  </span>
-                  <span>
-                    {range.from} – {range.to}
-                  </span>
-                </div>
+                {o.coverage?.skillBreakdownComplete === false ? (
+                  <Empty title="Skill history is incomplete" />
+                ) : (
+                  <>
+                    <div className="table-scroll">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Rank</th>
+                            <th>Category</th>
+                            <th>
+                              {api.mode === 'firebase'
+                                ? 'Completed battles involving skill'
+                                : 'Battles played'}
+                            </th>
+                            <th>
+                              {api.mode === 'firebase'
+                                ? 'Share of skill appearances'
+                                : 'Share of skill-specific battles'}
+                            </th>
+                            <th>Completion rate</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ranked.map((c, i) => (
+                            <tr key={c.id}>
+                              <td className="muted">{String(i + 1).padStart(2, '0')}</td>
+                              <td>
+                                <strong>{c.name}</strong>
+                              </td>
+                              <td>{number(c.battles)}</td>
+                              <td>
+                                <div className="progress-cell">
+                                  <span className="progress-track">
+                                    <i
+                                      style={{
+                                        width: `${skillBattles ? (c.battles / skillBattles) * 100 : 0}%`,
+                                      }}
+                                    />
+                                  </span>
+                                  <small>
+                                    {skillBattles
+                                      ? Math.round((c.battles / skillBattles) * 100)
+                                      : 0}
+                                    %
+                                  </small>
+                                </div>
+                              </td>
+                              <td>
+                                {api.mode === 'firebase'
+                                  ? c.completion == null
+                                    ? 'N/A'
+                                    : `${Math.round(c.completion)}%`
+                                  : c.started
+                                    ? `${Math.round((c.completed / c.started) * 100)}%`
+                                    : 'N/A'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="table-footer">
+                      <span>
+                        {number(skillBattles)}{' '}
+                        {api.mode === 'firebase'
+                          ? 'skill appearances · mixed-skill matches appear in each applicable skill'
+                          : 'skill-specific battles · mixed-skill matches excluded'}
+                      </span>
+                      <span>
+                        {range.from} – {range.to}
+                      </span>
+                    </div>
+                  </>
+                )}
               </section>
+              <OverviewFreshness value={o} />
               <p className="metrics-note">
-                Completion rate = completed learning/battle activities ÷ started activities.
+                {api.mode === 'firebase'
+                  ? 'Completion rate uses sessions started in the selected period and their completed outcomes as of the update. '
+                  : 'Completion rate = completed learning/battle activities ÷ started activities. '}
                 Accuracy uses total correct answers ÷ total answers. Empty denominators show N/A.
               </p>
             </>

@@ -7,9 +7,11 @@ import {questionOperationHandlers} from "./questions";
 import {listAdminQuestions} from "./questionIndex";
 import {getMonitoringBattle} from "./monitoringModel";
 import {listMonitoring} from "./monitoringIndex";
+import {getAdminOverview} from "./analytics";
 
 export const adminRuntime = createAdminRuntime(adminAuth, adminDb, {
   ...userReadHandlers,
+  adminGetOverview: async (_actor, data) => ({overview: await getAdminOverview(data)}),
   adminGetBattle: async (_actor, data) => ({detail: await getMonitoringBattle(String(data.id))}),
   adminListBattles: async (actor, data) => ({page: await listMonitoring("battles", actor.uid, data.query as Record<string, unknown>)}),
   adminListActivities: async (actor, data) => ({page: await listMonitoring("activities", actor.uid, data.query as Record<string, unknown>)}),

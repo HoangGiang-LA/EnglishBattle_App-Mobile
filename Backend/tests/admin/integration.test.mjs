@@ -89,7 +89,7 @@ test('all 21 callables reject anonymous/ordinary users; remaining business APIs 
     await assert.rejects(invoke(name, regular), {code: 'permission-denied'}, name)
     if (!['adminGetProfile', 'adminUpdateProfile', 'adminListUsers', 'adminGetUser', 'adminSaveUser', 'adminSetUserStatus',
       'adminGetCatalog', 'adminSaveContent', 'adminListQuestions', 'adminGetQuestion', 'adminSaveQuestion', 'adminArchiveQuestion',
-      'adminListBattles', 'adminGetBattle', 'adminListActivities'].includes(name)) {
+      'adminListBattles', 'adminGetBattle', 'adminListActivities', 'adminGetOverview'].includes(name)) {
       await assert.rejects(invoke(name, admin), {code: 'unimplemented'}, name)
     }
   }

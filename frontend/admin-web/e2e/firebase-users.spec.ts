@@ -98,7 +98,7 @@ test('real UI creates, reloads, edits, bans, reopens and soft-deletes one Fireba
   expect((await auth.getUser(created.uid)).disabled).toBe(true)
 })
 
-test('real profile saves survive reload; real mode has no demo reset and reports unsupported pages clearly', async ({
+test('real profile saves survive reload; real mode has no demo reset and opens the real Dashboard', async ({
   page,
 }) => {
   await enter(page)
@@ -119,8 +119,12 @@ test('real profile saves survive reload; real mode has no demo reset and reports
     .getByRole('navigation', { name: 'Main navigation' })
     .getByRole('link', { name: 'Dashboard', exact: true })
     .click()
-  await expect(page.getByText(/Chức năng này chưa được triển khai/).first()).toBeVisible()
-  await expect(page.getByText('Total Users', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('Total Users', { exact: true })).toBeVisible()
+  await expect(page.getByRole('status')).toContainText('Data through')
+  await page.getByRole('button', { name: 'Notifications', exact: true }).click()
+  await expect(page.locator('.notifications-panel').getByRole('alert')).toContainText(
+    'Chức năng này chưa được triển khai',
+  )
 })
 
 test('permission loss while the workspace is open signs out instead of retaining the admin screen', async ({

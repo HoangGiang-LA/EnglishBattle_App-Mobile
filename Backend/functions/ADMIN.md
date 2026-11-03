@@ -5,11 +5,12 @@ Cập nhật: 03/11/2026. Phạm vi: local/Spark, chưa deploy production.
 Bước 2 và bảo vệ admin cuối cùng: [hành vi, API, phục hồi và email](ADMIN-USERS.md).
 Bước 3: [danh mục, ngân hàng câu hỏi, phiên bản và TTS](ADMIN-CONTENT.md).
 Bước 4: [giám sát trận, hoạt động, dữ liệu riêng tư và worker](ADMIN-MONITORING.md).
+Bước 5: [Dashboard/Analytics, cohort, dữ liệu tổng hợp và rebuild](ADMIN-ANALYTICS.md).
 
 ## Trạng thái
 
 - Export đủ 21 callable tại `asia-southeast1`, dùng chung guard, validator và rate limit.
-- Đã gắn 15 handler Profile/Users/Catalog/Questions/Battles/Activities của Bước 2–4. 6 handler thuộc Bước 5–6
+- Đã gắn 16 handler của Bước 2–5, gồm Overview cho Dashboard/Analytics. 5 handler thuộc Bước 6
   tiếp tục trả `unimplemented`. Web mặc định dùng adapter Firebase cho các nhóm này; demo là opt-in.
 - HTTP `getAdminSession` tiếp tục xác nhận phiên đăng nhập; không thay thế guard callable.
 - Không thêm API cấp quyền, đổi rating/xu, sửa kết quả, daily/private, Storage hoặc FCM.
@@ -266,3 +267,41 @@ Chưa nghiệm thu Android trên thiết bị hoặc smoke test Firebase product
 Không chạy lại toàn bộ suite BE1 193+10 trong Bước 4; các luồng user thực tế liên quan
 đã được kiểm tra trong suite admin (matchmaking, settlement, reporting, khóa/xóa,
 snapshot phiên học và phiên thi đấu). Các số 193+10 ở biên bản Bước 3 là kết quả mốc trước.
+
+## Biên bản Bước 5 — 03/11/2026
+
+Đã triển khai `adminGetOverview`, worker tổng hợp và adapter thật cho Dashboard/Analytics.
+Tổng hiện tại 16/21 API có nghiệp vụ. Quy tắc chỉ số, cohort, dữ liệu thiếu, giới hạn,
+backfill và độ trễ tại [`ADMIN-ANALYTICS.md`](ADMIN-ANALYTICS.md).
+
+| Kiểm tra local | Kết quả |
+|---|---|
+| Functions lint, TypeScript build, schema export khớp runtime | Đạt |
+| Schema 21 API | 7/7 |
+| Hồi quy admin Bước 1–5 | 99/99, gồm 20 kiểm thử thống kê |
+| Web unit/component/adapter | 59/59 |
+| Browser Firebase SDK qua HTTP/callable Emulator | 12/12, gồm 3 luồng Dashboard/Analytics |
+| Browser demo desktop/mobile | 20/20 |
+| Web production build, format các file TS thay đổi, git diff check | Đạt |
+| Hồi quy backend người dùng | 193/193 |
+| HTTP callable người dùng và worker thật trên Emulator | 10/10 |
+| Server HTTP unit và syntax | 7/7; syntax đạt |
+| Hợp đồng frontend/mobile và kiểm tra export | 9/9 |
+
+Đã đối chiếu nguồn từ engine luyện tập và thi đấu thật trong Emulator: 1 phiên học,
+1 trận, 2 UID hoạt động, 30 slot câu hỏi và 17 đúng; settlement lặp không cộng lại.
+Kiểm tra bao phủ hơn 50 Auth/session records, distinct UID, kỳ trước, ngày Việt Nam,
+calendar buckets, mixed-skill, late completion, thiếu số đếm/start, mất acknowledgement,
+lease hết hạn và nguồn lỗi. Worker giữ nguyên ví, rating, grant, ledger và nguồn phiên.
+Đã đối chiếu ảnh Dashboard/Analytics với fixture trình duyệt (12 tài khoản, 3 UID
+hoạt động, 1 phiên học hoàn tất, 10/10 câu Vocabulary đúng).
+
+Các lượt browser đầu gặp timeout khởi tạo kết nối Emulator và kỳ vọng cũ rằng
+Dashboard chưa triển khai. Launcher QA nay kiểm tra các API đọc có xác thực đồng thời
+trước khi bắt đầu deadline UI; các bài kiểm thử chờ dữ liệu ban đầu và kiểm tra đúng
+popover thông báo. Lượt cuối toàn bộ 12/12 đạt. Timeout nghiệp vụ web vẫn 30 giây.
+
+Toàn bộ fixture và tiêm lỗi dùng project Emulator cô lập, không dùng Auth/RTDB thật.
+Chưa deploy Rules/index/Functions, smoke test Firebase production hoặc kiểm chứng
+Android trên thiết bị. Launcher Spark dùng dữ liệu thật vẫn cần khóa Admin SDK hợp lệ.
+5 API tìm kiếm/thông báo/audit/export thuộc Bước 6; không fallback sang mock khi lỗi.

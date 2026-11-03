@@ -65,4 +65,5 @@ await run([cli, 'emulators:exec', '--only', 'auth,database,functions', '--projec
   process.argv.includes('--web') ? 'node Backend/tests/admin/web/run.mjs' : process.argv.includes('--content') ?
     'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/content.test.mjs' :
     process.argv.includes('--monitoring') ? 'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/monitoring.test.mjs' :
-    'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/integration.test.mjs Backend/tests/admin/users.test.mjs Backend/tests/admin/content.test.mjs Backend/tests/admin/monitoring.test.mjs'])
+    process.argv.includes('--analytics') ? 'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/analytics.test.mjs' :
+    'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/integration.test.mjs Backend/tests/admin/users.test.mjs Backend/tests/admin/content.test.mjs Backend/tests/admin/monitoring.test.mjs Backend/tests/admin/analytics.test.mjs'])

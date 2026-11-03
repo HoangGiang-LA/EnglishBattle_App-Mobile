@@ -802,6 +802,18 @@
               "started": {
                 "type": "integer",
                 "minimum": 0
+              },
+              "completion": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 100
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -820,7 +832,9 @@
         "accuracy": {
           "anyOf": [
             {
-              "type": "number"
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
             },
             {
               "type": "null"
@@ -830,7 +844,9 @@
         "completion": {
           "anyOf": [
             {
-              "type": "number"
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
             },
             {
               "type": "null"
@@ -854,6 +870,101 @@
         "lagMs": {
           "type": "integer",
           "minimum": 0
+        },
+        "generation": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        },
+        "granularity": {
+          "type": "string",
+          "enum": [
+            "day",
+            "week",
+            "month"
+          ]
+        },
+        "timeZone": {
+          "const": "Asia/Ho_Chi_Minh"
+        },
+        "denominators": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "answered": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "correct": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "started": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "completed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "answered",
+            "correct",
+            "started",
+            "completed"
+          ]
+        },
+        "coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "unknownStartSessions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unclassifiedAnswers": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unknownAnswers": {
+              "type": "boolean"
+            },
+            "skillBreakdownComplete": {
+              "type": "boolean"
+            },
+            "partialPeriod": {
+              "type": "boolean"
+            },
+            "accountScope": {
+              "const": "retained-auth"
+            },
+            "completionBasis": {
+              "const": "started-in-period"
+            }
+          },
+          "required": [
+            "unknownStartSessions",
+            "unclassifiedAnswers",
+            "unknownAnswers",
+            "skillBreakdownComplete",
+            "partialPeriod",
+            "accountScope",
+            "completionBasis"
+          ]
         }
       },
       "required": [
@@ -870,7 +981,12 @@
         "recent",
         "asOf",
         "ready",
-        "lagMs"
+        "lagMs",
+        "generation",
+        "granularity",
+        "timeZone",
+        "denominators",
+        "coverage"
       ]
     },
     "participant": {

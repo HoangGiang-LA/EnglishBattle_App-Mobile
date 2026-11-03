@@ -17,7 +17,10 @@ export const audit = {id: 'operation_1', operationId: 'operation_1', actor: 'adm
   target: 'user/user_1', at: 2, reason: 'Support request', result: 'succeeded'}
 export const overview = {totalUsers: 2, newUsers: 1, activeUsers: 2, completedBattles: 1, completedLessons: 1,
   growth: {users: null, active: null, battles: null}, series: [], categories: [], accuracy: 80, completion: 100,
-  recent: [activity], asOf: 2, ready: true, lagMs: 0}
+  recent: [activity], asOf: 2, ready: true, lagMs: 0, generation: 'generation_1', granularity: 'day', timeZone: 'Asia/Ho_Chi_Minh',
+  denominators: {answered: 10, correct: 8, started: 1, completed: 1}, coverage: {unknownStartSessions: 0,
+    unclassifiedAnswers: 0, unknownAnswers: false, skillBreakdownComplete: true, partialPeriod: false,
+    accountScope: 'retained-auth', completionBasis: 'started-in-period'}}
 const write = {requestId: 'request_1'}
 export const requests = {
   adminGetProfile: {},

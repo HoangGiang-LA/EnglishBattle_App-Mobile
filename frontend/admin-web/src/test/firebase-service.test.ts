@@ -37,6 +37,26 @@ const page = (items: UserRecord[], snapshotId = 'snapshot_1') => ({
 })
 
 describe('Firebase admin adapter', () => {
+  it('reads published overview with the exact range, skill and granularity and reports incomplete history', async () => {
+    const transport = vi
+      .fn<AdminTransport>()
+      .mockResolvedValue({ overview: { totalUsers: 25, generation: 'generation_1', ready: true } })
+    const service = new FirebaseAdminService('admin_1', transport)
+    const range = { from: '2026-11-01', to: '2026-11-03' }
+    expect((await service.overview(range)).totalUsers).toBe(25)
+    expect(transport.mock.calls[0]).toEqual(['adminGetOverview', { range, granularity: 'day' }])
+    await service.overview(range, 'reading', 'month')
+    expect(transport.mock.calls[1]).toEqual([
+      'adminGetOverview',
+      { range, categoryId: 'reading', granularity: 'month' },
+    ])
+    transport.mockRejectedValueOnce(failed('failed-precondition', 'overview-not-ready'))
+    await expect(service.overview(range)).rejects.toThrow(/tổng hợp đầy đủ/)
+    transport.mockRejectedValueOnce(
+      failed('failed-precondition', 'overview-skill-history-incomplete'),
+    )
+    await expect(service.overview(range, 'reading')).rejects.toThrow(/All skills/)
+  })
   it('persists a stable requestId and complete payload over timeout and adapter reload', async () => {
     const transport = vi
       .fn<AdminTransport>()
@@ -155,7 +175,7 @@ describe('Firebase admin adapter', () => {
     await expect(service.profile()).rejects.toThrow(/thu hồi/)
     expect((listener.mock.calls[0][0] as CustomEvent).detail.uid).toBe('admin_1')
     await expect(service.overview({ from: '2026-11-01', to: '2026-11-03' })).rejects.toThrow(
-      /chưa được triển khai/,
+      /thu hồi/,
     )
     await expect(service.reset()).rejects.toThrow(/Không có chức năng reset/)
     window.removeEventListener('admin:access-denied', listener)

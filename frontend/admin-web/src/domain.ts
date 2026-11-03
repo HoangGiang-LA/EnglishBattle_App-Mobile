@@ -188,11 +188,32 @@ export interface Overview {
     correct: number
     completed: number
     started: number
+    completion?: number | null
   }[]
   accuracy: number | null
   completion: number | null
   recent: Activity[]
   asOf: number
+  ready?: boolean
+  lagMs?: number
+  generation?: string
+  granularity?: 'day' | 'week' | 'month'
+  timeZone?: 'Asia/Ho_Chi_Minh'
+  denominators?: {
+    answered: number | null
+    correct: number | null
+    started: number
+    completed: number
+  }
+  coverage?: {
+    unknownStartSessions: number
+    unclassifiedAnswers: number
+    unknownAnswers: boolean
+    skillBreakdownComplete: boolean
+    partialPeriod: boolean
+    accountScope: 'retained-auth'
+    completionBasis: 'started-in-period'
+  }
 }
 export interface BattleDetail {
   battle: BattleRecord
@@ -232,7 +253,11 @@ export interface AdminService {
   readonly storageWarning?: string | null
   profile(): Promise<AdminProfile>
   saveProfile(name: string, expectedRevision?: number): Promise<AdminProfile>
-  overview(range: DateRange, categoryId?: string): Promise<Overview>
+  overview(
+    range: DateRange,
+    categoryId?: string,
+    granularity?: 'day' | 'week' | 'month',
+  ): Promise<Overview>
   users(query: ListQuery): Promise<Page<UserRecord>>
   user(id: string): Promise<UserRecord>
   saveUser(

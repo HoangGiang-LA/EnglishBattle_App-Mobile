@@ -69,6 +69,8 @@ test('monitoring refresh reflects completed status and exposes recorded activiti
   await expect(page.getByRole('button', { name: `View logs B-${id}`, exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'View activities', exact: true }).click()
   const dialog = page.getByRole('dialog')
+  await expect(dialog.getByRole('button', { name: 'Next page', exact: true })).toBeEnabled()
+  await dialog.getByRole('combobox', { name: /Activity type/ }).selectOption('user')
   await expect(dialog.getByText('Account registered', { exact: true })).toHaveCount(10)
   await expect(dialog.getByText(/Simulated/)).toHaveCount(0)
   await dialog.getByRole('button', { name: 'Next page', exact: true }).click()

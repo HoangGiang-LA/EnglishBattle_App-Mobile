@@ -36,7 +36,15 @@ export function Sparkline({ color = '#665cff', values }: { color?: string; value
     </svg>
   )
 }
-export function GrowthChart({ series, group }: { series: Overview['series']; group: string }) {
+export function GrowthChart({
+  series,
+  group,
+  preAggregated = false,
+}: {
+  series: Overview['series']
+  group: string
+  preAggregated?: boolean
+}) {
   const svg = useRef<SVGSVGElement>(null),
     [width, setWidth] = useState(960)
   useEffect(() => {
@@ -50,7 +58,9 @@ export function GrowthChart({ series, group }: { series: Overview['series']; gro
   }, [])
   const id = useId().replaceAll(':', ''),
     step = group === 'weekly' ? 7 : group === 'monthly' ? 30 : 1
-  const rows = series.filter((_, i) => i % step === 0 || i === series.length - 1)
+  const rows = preAggregated
+    ? series
+    : series.filter((_, i) => i % step === 0 || i === series.length - 1)
   const max = Math.max(5, ...rows.flatMap((d) => [d.users, d.previous])) + 5,
     height = 172
   const points = (key: 'users' | 'previous') =>
@@ -175,8 +185,16 @@ export function ActivityBars({ series }: { series: Overview['series'] }) {
     </svg>
   )
 }
-export function SkillDonut({ categories }: { categories: Overview['categories'] }) {
-  const total = categories.reduce((n, c) => n + c.lessons, 0),
+export function SkillDonut({
+  categories,
+  basis = 'lessons',
+}: {
+  categories: Overview['categories']
+  basis?: 'lessons' | 'answers'
+}) {
+  const value = (c: Overview['categories'][number]) =>
+    basis === 'answers' ? c.answered : c.lessons
+  const total = categories.reduce((n, c) => n + value(c), 0),
     colors = ['#665cf3', '#a39bff', '#d2ccff', '#e3e6f4']
   let offset = 0
   return (
@@ -185,11 +203,11 @@ export function SkillDonut({ categories }: { categories: Overview['categories'] 
         <svg
           viewBox="0 0 180 180"
           role="img"
-          aria-label={`Skill distribution: ${total} completed lessons`}
+          aria-label={`Skill distribution: ${total} ${basis === 'answers' ? 'answered questions' : 'completed lessons'}`}
         >
           <circle cx="90" cy="90" r="69" fill="none" stroke="#eef0f6" strokeWidth="18" />
           {categories.map((c, i) => {
-            const size = total ? (c.lessons / total) * 100 : 0,
+            const size = total ? (value(c) / total) * 100 : 0,
               start = offset
             offset += size
             return (
@@ -211,7 +229,7 @@ export function SkillDonut({ categories }: { categories: Overview['categories'] 
         </svg>
         <div className="donut-label">
           <strong>{number(total)}</strong>
-          <span>Lessons completed</span>
+          <span>{basis === 'answers' ? 'Answers' : 'Lessons completed'}</span>
         </div>
       </div>
       <div className="donut-legend">
@@ -220,9 +238,11 @@ export function SkillDonut({ categories }: { categories: Overview['categories'] 
             <i style={{ background: colors[i] }} />
             <span>
               <strong>{c.name}</strong>
-              <small>{number(c.lessons)} lessons</small>
+              <small>
+                {number(value(c))} {basis === 'answers' ? 'answers' : 'lessons'}
+              </small>
             </span>
-            <b>{total ? Math.round((c.lessons / total) * 100) : 0}%</b>
+            <b>{total ? Math.round((value(c) / total) * 100) : 0}%</b>
           </div>
         ))}
       </div>

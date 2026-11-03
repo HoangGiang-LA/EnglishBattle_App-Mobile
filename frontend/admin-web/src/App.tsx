@@ -336,7 +336,7 @@ function AdminWorkspace({
               title={
                 api.mode === 'demo'
                   ? 'Demo workspace · Local sample data · No live admin data'
-                  : 'Firebase data · Profile, users, content and monitoring'
+                  : 'Firebase data · Users, content, monitoring and analytics'
               }
               onClick={() => setPanel('help')}
             >
@@ -592,7 +592,7 @@ function AdminWorkspace({
       {panel === 'help' && api.mode === 'firebase' && (
         <Modal
           title="Firebase workspace"
-          subtitle="Profile, users, content and monitoring"
+          subtitle="Users, content, monitoring and analytics"
           onClose={() => setPanel(null)}
         >
           <div className="modal-body prose">
@@ -608,8 +608,12 @@ function AdminWorkspace({
               unavailable.
             </p>
             <p>
-              Dashboard, analytics, notifications, search, audit browsing and export will be
-              connected in the next steps. They currently report unavailable.
+              Dashboard and Analytics use published server aggregates, with update time and
+              historical data coverage shown on each page.
+            </p>
+            <p>
+              Notifications, search, audit browsing and export will be connected in the next step.
+              They currently report unavailable.
             </p>
             <p>
               New accounts receive a Firebase password setup email. Check the invitation status

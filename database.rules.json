@@ -8,6 +8,8 @@
     "adminRateLimits": {".indexOn": ["expiresAt"]},
     "adminSnapshots": {".indexOn": ["expiresAt"]},
     "adminReports": {".indexOn": ["expiresAt"]},
+    "adminAnalyticsGenerationMeta": {".indexOn": ["expiresAt"]},
+    "adminAnalyticsGenerations": {"$generation": {"events": {"$skill": {".indexOn": ["at"]}}}},
     "adminUserIndex": {".indexOn": ["nameKey", "emailKey", "createdAt", "updatedAt", "status"]},
     "adminInvitations": {".indexOn": ["dueAt", "cleanupAt"]},
     "adminQuestionIndex": {".indexOn": ["searchKey", "updatedAt", "status", "categoryId", "lessonId"]},

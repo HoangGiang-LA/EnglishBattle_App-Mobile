@@ -1,6 +1,6 @@
 # English Battle — Web admin
 
-Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. **Profile, Users, Content, Battles và hoạt động dùng Firebase qua 15 callable admin.** Các nhóm còn lại báo chưa triển khai, không trả dữ liệu mẫu. Bố cục 5 trang được giữ lại.
+Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. **Cả 5 trang dùng Firebase qua 16 callable admin**, gồm Overview cho Dashboard/Analytics. Tìm kiếm chung, thông báo, xem audit và export còn chờ Bước 6; không fallback sang dữ liệu mẫu.
 
 ## Chạy trên máy của bạn
 
@@ -49,7 +49,8 @@ Giao diện dùng tiếng Anh như 5 ảnh thiết kế. Font Inter và icon đ�
 - Content: quản lý 4 kỹ năng, topic/lesson có revision; câu hỏi có expectedVersion, tạo version bất biến và archive. Listening thật chỉ dùng TTS, lesson là bắt buộc; UI ẩn URL/upload.
 - Battles: đọc trận nhanh thật, hai người chơi, điểm vòng đã chốt, lý do kết thúc, settlement và các event server có thật. Chi tiết tự tải lại 10 giây; Refresh danh sách tạo snapshot mới. Danh sách công bố `asOf` vì worker cập nhật theo vòng quét.
 - **View activities** trong Battles mở hoạt động đăng ký/học/thi đấu, lọc loại và phân trang 10/20/50. Tên tài khoản xóa mềm được ẩn danh cả trên snapshot cũ. Daily/private báo chưa triển khai.
-- Dashboard/Analytics/search/notification/audit browsing/export còn chờ các bước tiếp theo. Xem [Bước 2](../../Backend/functions/ADMIN-USERS.md), [Bước 3](../../Backend/functions/ADMIN-CONTENT.md) và [Bước 4](../../Backend/functions/ADMIN-MONITORING.md) cho quy tắc, giới hạn và phục hồi.
+- Dashboard/Analytics: KPI, UID active không trùng, tỷ lệ có trọng số và cohort bắt đầu trong kỳ; lọc kỹ năng gồm mixed-skill, ngày/tuần/tháng lịch thật. API chỉ đọc generation server đã dựng xong, hiển thị asOf/lag/coverage; lịch sử thiếu trường báo N/A hoặc lỗi rõ, không gán số 0 giả.
+- Tìm kiếm chung, thông báo, xem audit và export thuộc Bước 6. Xem [Bước 2](../../Backend/functions/ADMIN-USERS.md), [Bước 3](../../Backend/functions/ADMIN-CONTENT.md), [Bước 4](../../Backend/functions/ADMIN-MONITORING.md) và [Bước 5](../../Backend/functions/ADMIN-ANALYTICS.md) cho quy tắc, giới hạn và phục hồi.
 
 ## Chế độ demo để xem thiết kế
 
