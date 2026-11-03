@@ -124,13 +124,19 @@ Mọi response có `serverNow` theo epoch milliseconds. Kiểu trường, bắt 
 
 ## 2. Backend phía admin
 
+Mốc 03/11/2026: nền tảng API và Bước 2 đã triển khai, kiểm thử local/Emulator;
+chưa deploy production hoặc kiểm chứng email/Android thiết bị thật. Chi tiết và biên bản:
+[`functions/ADMIN.md`](functions/ADMIN.md), [`functions/ADMIN-USERS.md`](functions/ADMIN-USERS.md).
+Các dấu hoàn thành dưới đây chỉ áp dụng cho mốc local/Emulator này.
+
 ### 2.1. Xác thực và phân quyền
 
 - [ ] Cấp custom claim boolean `admin: true` từ môi trường tin cậy theo danh sách quản trị được chủ dự án cho phép.
-- [ ] Mọi API admin kiểm tra token, claim và `accountAccess` active; kiểm tra lại phía server kể cả khi UI đã ẩn nút.
+- [x] Mọi API admin kiểm tra token, claim và `accountAccess` active; kiểm tra lại phía server kể cả khi UI đã ẩn nút.
 - [ ] Nếu tách vai trò nội dung/vận hành, định nghĩa rõ quyền từng thao tác; chưa tự thêm màn phân quyền mới.
-- [ ] Có cách thu hồi quyền, khóa tài khoản và xử lý token/claim còn cache; không chỉ dựa vào claim cũ khi tài khoản đã bị khóa.
-- [ ] Không đưa service-account, private key hoặc Admin SDK vào APK/web bundle.
+- [x] Có cách thu hồi quyền, khóa tài khoản và xử lý token/claim còn cache; không chỉ dựa vào claim cũ khi tài khoản đã bị khóa.
+- [x] Không đưa service-account, private key hoặc Admin SDK vào APK/web bundle.
+- [x] Chặn tự khóa/xóa, bảo vệ admin hoạt động cuối cùng qua khóa chung giữa API trạng thái và công cụ claim server.
 
 ### 2.2. Dashboard và Analytics
 
@@ -144,12 +150,13 @@ Mọi response có `serverNow` theo epoch milliseconds. Kiểu trường, bắt 
 
 ### 2.3. Quản lý người dùng
 
-- [ ] Danh sách, tìm kiếm, bộ lọc, phân trang và chi tiết dùng UID ổn định; mã hiển thị không thay thế UID.
-- [ ] Tạo/sửa tên và email đồng bộ Auth/RTDB, xử lý email trùng và lỗi cập nhật một phần.
-- [ ] Chọn luồng mời tài khoản/reset email khi admin tạo user; form hiện tại không nhận mật khẩu, không lưu password vào RTDB.
-- [ ] Khóa/mở khóa/xóa có lý do và audit. Thiết kế xóa mềm, thu hồi truy cập, xử lý phiên đang hoạt động và ẩn danh hóa dữ liệu cần giữ.
-- [ ] Rating/xu trong trang người dùng chỉ đọc; không tạo API sửa tùy ý khi chưa có nghiệp vụ được duyệt.
-- [ ] Không cho thao tác quản lý hồ sơ tự cấp quyền admin.
+- [x] Danh sách, tìm kiếm, bộ lọc, phân trang và chi tiết dùng UID ổn định; mã hiển thị không thay thế UID.
+- [x] Tạo/sửa tên và email đồng bộ Auth/RTDB, xử lý email trùng và lỗi cập nhật một phần. Kết quả Auth chưa rõ giữ lock để đối soát.
+- [x] Mời/đặt mật khẩu qua email Firebase; có trạng thái gửi và gửi lại có chủ ý, không lưu password/link vào RTDB. Còn cần nghiệm thu hộp thư thật.
+- [x] Khóa/mở khóa/xóa có lý do và audit; xóa mềm, thu hồi phiên, settlement phiên đang hoạt động và ẩn danh khi đọc lịch sử.
+- [x] Rating/xu trong trang người dùng chỉ đọc; không tạo API sửa tùy ý khi chưa có nghiệp vụ được duyệt.
+- [x] Không cho thao tác quản lý hồ sơ tự cấp quyền admin.
+- [x] Hồ sơ admin lấy từ Auth/RTDB, sửa tên với revision và đồng bộ index.
 
 ### 2.4. Quản lý nội dung/câu hỏi
 
@@ -172,9 +179,11 @@ Mọi response có `serverNow` theo epoch milliseconds. Kiểu trường, bắt 
 - [ ] Audit do backend append: actor UID lấy từ token, target, hành động, thời gian server, kết quả và thay đổi cần thiết; không ghi mật khẩu/token.
 - [ ] Không cung cấp `reset()` dữ liệu production; đó là phương thức chỉ dành cho demo.
 
-### 2.6. Danh sách 21 callable admin dự kiến
+### 2.6. Danh sách 21 callable admin
 
-Tên và request cụ thể lấy từ `admin.v1.json`; kiểu payload lấy từ `domain.ts`. Tên admin hiện là hợp đồng đề xuất, chưa có adapter thật.
+Tên và request cụ thể lấy từ `admin.v1.json` và `admin.schemas.v1.json`; kiểu UI lấy từ
+`domain.ts`. Cả 21 callable đã có guard/schema; 6 API Profile/Users có nghiệp vụ và
+adapter thật, 15 API còn lại trả `unimplemented`. Mutation có thêm `operationId`.
 
 | Callable | Phương thức AdminService | Payload ngoài `serverNow` |
 | --- | --- | --- |
@@ -195,9 +204,9 @@ Tên và request cụ thể lấy từ `admin.v1.json`; kiểu payload lấy t�
 | `adminGetBattle` | `battle` | `detail` |
 | `adminListActivities` | `activities` | `page` |
 | `adminSearch` | `search` | `items` |
-| `adminListNotifications` | `notifications` | `items` |
+| `adminListNotifications` | `notifications` | `page` |
 | `adminMarkNotificationsRead` | `readNotifications` | Không có |
-| `adminListAudit` | `audit` | `items` |
+| `adminListAudit` | `audit` | `page` |
 | `adminExportReport` | `exportReport` | `report` |
 
 ## 3. Kết nối API, Firebase và kiểm thử tích hợp

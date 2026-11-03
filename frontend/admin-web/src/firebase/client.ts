@@ -1,6 +1,7 @@
 import { getApps, initializeApp } from 'firebase/app'
 import {
   browserSessionPersistence,
+  connectAuthEmulator,
   getAuth,
   getIdTokenResult,
   onIdTokenChanged,
@@ -9,9 +10,9 @@ import {
   signOut,
   type User,
 } from 'firebase/auth'
-import { getDatabase } from 'firebase/database'
+import { connectDatabaseEmulator, getDatabase } from 'firebase/database'
 import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions'
-import { firebaseConfig } from './config'
+import { adminQaProject, firebaseConfig } from './config'
 import { sessionFromClaims, type AuthGateway, type FirebaseSession } from './auth'
 import { verifyAdminAccess } from './backend'
 
@@ -21,8 +22,12 @@ export const firebaseApp =
 export const firebaseAuth = getAuth(firebaseApp)
 // Creating the SDK instance does not grant access or read/write data.
 export const firebaseDatabase = getDatabase(firebaseApp)
-const firebaseFunctions = getFunctions(firebaseApp, 'asia-southeast1')
-if (import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR === 'true') {
+export const firebaseFunctions = getFunctions(firebaseApp, 'asia-southeast1')
+if (adminQaProject) {
+  connectAuthEmulator(firebaseAuth, 'http://127.0.0.1:19299', { disableWarnings: true })
+  connectDatabaseEmulator(firebaseDatabase, '127.0.0.1', 19200)
+  connectFunctionsEmulator(firebaseFunctions, '127.0.0.1', 15003)
+} else if (import.meta.env.DEV && import.meta.env.VITE_USE_FUNCTIONS_EMULATOR === 'true') {
   connectFunctionsEmulator(firebaseFunctions, '127.0.0.1', 5001)
 }
 const ensureUserProfile = httpsCallable(firebaseFunctions, 'ensureUserProfile')

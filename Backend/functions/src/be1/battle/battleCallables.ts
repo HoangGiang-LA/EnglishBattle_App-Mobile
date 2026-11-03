@@ -1,3 +1,4 @@
+import {enforceUserSession} from "../auth/userSession";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {adminDb} from "../../config/firebaseAdmin";
 import {activeBattleUser, battleSession, operationId} from "./battleAccess";
@@ -13,6 +14,7 @@ import {memberBattleResponse, transactBattle} from "./battleService";
 const options = {region: "asia-southeast1", maxInstances: 10};
 
 export const findBattle = onCall(options, async (request) => {
+  await enforceUserSession(request);
   const uid = request.auth?.uid;
   const name = await activeBattleUser(uid);
   const {kind, requestId, clientSessionId} = request.data || {};
@@ -42,6 +44,7 @@ export const findBattle = onCall(options, async (request) => {
 });
 
 export const getBattleTicket = onCall(options, async (request) => {
+  await enforceUserSession(request);
   const uid = request.auth?.uid;
   await activeBattleUser(uid);
   const {ticketId, clientSessionId} = request.data || {};
@@ -62,6 +65,7 @@ export const getBattleTicket = onCall(options, async (request) => {
 });
 
 export const cancelBattleSearch = onCall(options, async (request) => {
+  await enforceUserSession(request);
   const uid = request.auth?.uid;
   await activeBattleUser(uid);
   const {ticketId, clientSessionId} = request.data || {};

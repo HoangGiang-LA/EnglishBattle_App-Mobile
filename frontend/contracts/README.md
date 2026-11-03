@@ -2,10 +2,10 @@
 
 - `business-rules.v1.json`: chính sách đã chốt và các mặc định triển khai được ghi riêng.
 - `mobile.v1.mjs`: JSON Schema cho request/response của 18 callable Android, gồm thống kê theo kỳ, thời lượng và phân trang lịch sử/ví/thông báo; code server nằm trong Backend/functions.
-- `admin.v1.json`: ánh xạ 22 phương thức AdminService, gồm 21 callable đề xuất và một `reset` chỉ dùng demo. Kiểu payload đầy đủ tiếp tục lấy từ `admin-web/src/domain.ts`.
+- `admin.v1.json`: ánh xạ 21 callable admin và một `reset` chỉ dùng demo, giới hạn và mã lỗi. `admin.schemas.v1.json` chứa JSON Schema request/response của đủ 21 API; được xuất từ `Backend/functions/src/admin/contracts.ts`. Wire DTO đã bổ sung revision, operation ID, snapshot và phân trang audit/thông báo. Adapter Profile/Users đã nối UI; các nhóm còn lại nối theo các bước tiếp theo.
 - `database.rules.proposed.json`: Rules client để kiểm thử bằng emulator, **chưa deploy**.
 
-Giữ nguyên UI theo Figma. Backend triển khai đúng model/interface để thay repository/service phía dưới. Các tên callable admin là đề xuất đã ghi thành file, chưa có adapter thật hoặc function được export.
+Giữ nguyên UI theo Figma. Từ 03/11/2026, 6 callable Profile/Users đã có nghiệp vụ thật và adapter web Firebase. 15 callable còn lại đã được export qua guard/schema/rate limit chung và trả `unimplemented`; web không fallback sang mock. Xem `Backend/functions/ADMIN-USERS.md` cho bảo vệ admin cuối cùng, operation, revision, email và QA.
 
 ## Quy tắc đã xác nhận ngày 25/10/2026
 

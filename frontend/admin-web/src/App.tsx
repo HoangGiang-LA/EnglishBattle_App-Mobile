@@ -22,7 +22,7 @@ import {
   X,
 } from 'lucide-react'
 import type { AdminService, PageId } from './domain'
-import { MockAdminService, service } from './data/mock-service'
+import { loadWorkspaceService } from './data/firebase-service'
 import { AdminContext } from './context'
 import { useDebounced, useResource, useRoute } from './hooks'
 import { Avatar, Empty, ErrorState, Field, FormError, Loading, Modal } from './components'
@@ -90,33 +90,91 @@ function Login({ auth }: { auth: AdminAuthController }) {
 }
 
 export default function App({
-  api = service,
+  api,
   authLoader,
 }: {
   api?: AdminService
   authLoader?: () => Promise<AuthGateway>
 }) {
   const auth = useAdminAuth(authLoader)
+  const [loaded, setLoaded] = useState<{ uid: string; api: AdminService } | null>(null)
+  const [serviceError, setServiceError] = useState('')
+  const [accessError, setAccessError] = useState('')
+  const [serviceRevision, setServiceRevision] = useState(0)
+  useEffect(() => {
+    let closed = false
+    setLoaded(null)
+    setServiceError('')
+    if (!api && auth.session?.isAdmin) {
+      const uid = auth.session.uid
+      void loadWorkspaceService(uid)
+        .then((value) => {
+          if (!closed) {
+            if (value.mode === 'firebase' && !window.location.hash) window.location.hash = '/users'
+            setLoaded({ uid, api: value })
+          }
+        })
+        .catch((error) => {
+          if (!closed) setServiceError(message(error))
+        })
+    }
+    return () => {
+      closed = true
+    }
+  }, [api, auth.session?.uid, auth.session?.isAdmin, serviceRevision])
+  const activeApi = api || (loaded?.uid === auth.session?.uid ? loaded?.api : undefined)
+  useEffect(() => {
+    if (!auth.session?.isAdmin) return
+    setAccessError('')
+    const uid = auth.session.uid
+    const denied = (event: Event) => {
+      const detail = (event as CustomEvent<{ uid: string; message: string }>).detail
+      if (detail?.uid !== uid) return
+      setAccessError(detail.message)
+      void auth.signOut()
+    }
+    window.addEventListener('admin:access-denied', denied)
+    const timer =
+      activeApi?.mode === 'firebase'
+        ? setInterval(() => {
+            void activeApi.profile().catch(() => {})
+          }, 30000)
+        : undefined
+    return () => {
+      window.removeEventListener('admin:access-denied', denied)
+      clearInterval(timer)
+    }
+  }, [auth.session?.uid, auth.session?.isAdmin, activeApi])
   if (!auth.session?.isAdmin)
     return (
       <Login
         auth={{
           ...auth,
+          error: auth.error || accessError,
           signIn: (email, password) => {
-            window.location.hash = '/dashboard'
+            window.location.hash =
+              api?.mode === 'demo' || import.meta.env.VITE_ADMIN_DATA_MODE === 'demo'
+                ? '/dashboard'
+                : '/users'
             return auth.signIn(email, password)
           },
           refresh: () => {
-            window.location.hash = '/dashboard'
+            window.location.hash =
+              api?.mode === 'demo' || import.meta.env.VITE_ADMIN_DATA_MODE === 'demo'
+                ? '/dashboard'
+                : '/users'
             return auth.refresh()
           },
         }}
       />
     )
+  if (serviceError)
+    return <ErrorState error={serviceError} retry={() => setServiceRevision((v) => v + 1)} />
+  if (!activeApi) return <Loading label="Connecting admin services…" />
   return (
     <AdminWorkspace
       key={auth.session.uid}
-      api={api}
+      api={activeApi}
       session={auth.session}
       onSignOut={auth.signOut}
       authBusy={auth.busy}
@@ -205,7 +263,11 @@ function AdminWorkspace({
     setPopover(null)
   }
   const unread = notifications.data?.filter((n) => !n.read).length || 0,
-    name = session.name || session.email || 'Administrator'
+    name =
+      (api.mode === 'firebase' && profile.data?.name) ||
+      session.name ||
+      session.email ||
+      'Administrator'
   return (
     <AdminContext.Provider value={{ api, toast, navigate: go, range, setRange }}>
       <div className="app-layout">
@@ -242,7 +304,7 @@ function AdminWorkspace({
           <div className="sidebar-bottom">
             <span className="system-status">
               <i />
-              Demo services ready
+              {api.mode === 'demo' ? 'Demo services ready' : 'Firebase · Users & profile'}
             </span>
             <button className="sidebar-account" onClick={() => setPanel('profile')}>
               <Avatar name={name} />
@@ -271,11 +333,15 @@ function AdminWorkspace({
             <button
               className="demo-indicator"
               aria-label="Preview details"
-              title="Demo workspace · Local sample data · No live admin data"
+              title={
+                api.mode === 'demo'
+                  ? 'Demo workspace · Local sample data · No live admin data'
+                  : 'Firebase data · Profile and user management'
+              }
               onClick={() => setPanel('help')}
             >
               <FlaskConical size={13} />
-              <span>Demo workspace</span>
+              <span>{api.mode === 'demo' ? 'Demo workspace' : 'Firebase workspace'}</span>
             </button>
             <div className="header-actions">
               <div className="global-search">
@@ -407,7 +473,11 @@ function AdminWorkspace({
                     action: () => setPanel('profile'),
                   },
                   { label: 'Admin activity log', icon: Activity, action: () => setPanel('audit') },
-                  { label: 'About this preview', icon: CircleHelp, action: () => setPanel('help') },
+                  {
+                    label: api.mode === 'demo' ? 'About this preview' : 'About this workspace',
+                    icon: CircleHelp,
+                    action: () => setPanel('help'),
+                  },
                   { label: 'Sign out', icon: LogOut, action: signOut },
                 ].map((item) => (
                   <button
@@ -432,10 +502,12 @@ function AdminWorkspace({
           )}
           {!online && (
             <div className="offline-banner" role="status">
-              You’re offline. This demo continues to use data saved in your browser.
+              {api.mode === 'demo'
+                ? 'You’re offline. This demo continues to use data saved in your browser.'
+                : 'You’re offline. Keep your form open and retry when connected.'}
             </div>
           )}
-          {api instanceof MockAdminService && api.storageWarning && (
+          {api.mode === 'demo' && api.storageWarning && (
             <p role="alert" className="storage-warning">
               {api.storageWarning}
             </p>
@@ -491,17 +563,54 @@ function AdminWorkspace({
           </button>
         </div>
       )}
-      {panel === 'profile' && (
+      {panel === 'profile' && api.mode === 'firebase' && !profile.data && (
+        <Modal
+          title="Profile & workspace"
+          subtitle="Firebase administrator profile"
+          onClose={() => setPanel(null)}
+        >
+          <div className="modal-body">
+            {profile.error ? (
+              <ErrorState error={profile.error} retry={profile.reload} />
+            ) : (
+              <Loading label="Loading profile…" />
+            )}
+          </div>
+        </Modal>
+      )}
+      {panel === 'profile' && (api.mode === 'demo' || profile.data) && (
         <ProfileDialog
           api={api}
           name={profile.data?.name || name}
           email={profile.data?.email || ''}
+          revision={profile.data?.revision}
           onClose={() => setPanel(null)}
           onReset={() => setPanel('reset')}
         />
       )}
       {panel === 'audit' && <AuditDialog api={api} onClose={() => setPanel(null)} />}
-      {panel === 'help' && (
+      {panel === 'help' && api.mode === 'firebase' && (
+        <Modal
+          title="Firebase workspace"
+          subtitle="Profile and user management"
+          onClose={() => setPanel(null)}
+        >
+          <div className="modal-body prose">
+            <p>
+              Profile and Users read and update Firebase accounts. Rating and coins are read only.
+            </p>
+            <p>
+              Dashboard, content, battles, analytics, notifications, search, audit browsing and
+              export will be connected in the next steps. They currently report unavailable.
+            </p>
+            <p>
+              New accounts receive a Firebase password setup email. Check the invitation status
+              before sending again.
+            </p>
+          </div>
+        </Modal>
+      )}
+      {panel === 'help' && api.mode === 'demo' && (
         <Modal
           title="About this preview"
           subtitle="Verified admin access · Sample business data"
@@ -557,7 +666,9 @@ function AdminWorkspace({
           </div>
         </Modal>
       )}
-      {panel === 'reset' && <ResetDialog api={api} onClose={() => setPanel(null)} />}
+      {panel === 'reset' && api.mode === 'demo' && (
+        <ResetDialog api={api} onClose={() => setPanel(null)} />
+      )}
     </AdminContext.Provider>
   )
 }
@@ -566,22 +677,27 @@ function ProfileDialog({
   api,
   name,
   email,
+  revision,
   onClose,
   onReset,
 }: {
   api: AdminService
   name: string
   email: string
+  revision?: number
   onClose: () => void
   onReset: () => void
 }) {
   const [value, setValue] = useState(name),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('')
+  const [expectedRevision] = useState(revision)
   return (
     <Modal
       title="Profile & workspace"
-      subtitle="Demo administrator profile"
+      subtitle={
+        api.mode === 'demo' ? 'Demo administrator profile' : 'Firebase administrator profile'
+      }
       onClose={onClose}
       busy={busy}
     >
@@ -591,7 +707,7 @@ function ProfileDialog({
           setBusy(true)
           setError('')
           try {
-            await api.saveProfile(value)
+            await api.saveProfile(value, expectedRevision)
             onClose()
           } catch (e) {
             setError(message(e))
@@ -605,7 +721,9 @@ function ProfileDialog({
             <Avatar name={value} />
             <span>
               <strong>{value}</strong>
-              <small>Administrator · Demo access</small>
+              <small>
+                Administrator · {api.mode === 'demo' ? 'Demo access' : 'Firebase access'}
+              </small>
             </span>
           </div>
           <Field label="Display name">
@@ -619,18 +737,24 @@ function ProfileDialog({
           </Field>
           <Field
             label="Email address"
-            hint="Authentication and email changes will be connected to Firebase later."
+            hint={
+              api.mode === 'demo'
+                ? 'Authentication and email changes will be connected to Firebase later.'
+                : 'Use the account email change flow to change your own sign-in address.'
+            }
           >
             <input value={email} disabled />
           </Field>
           <FormError error={error} />
-          <div className="reset-area">
-            <strong>Demo data</strong>
-            <p>Restore sample users, content and activity in this browser.</p>
-            <button type="button" className="btn btn-danger-outline" onClick={onReset}>
-              Reset demo data
-            </button>
-          </div>
+          {api.mode === 'demo' && (
+            <div className="reset-area">
+              <strong>Demo data</strong>
+              <p>Restore sample users, content and activity in this browser.</p>
+              <button type="button" className="btn btn-danger-outline" onClick={onReset}>
+                Reset demo data
+              </button>
+            </div>
+          )}
         </div>
         <div className="modal-footer">
           <button type="button" className="btn" disabled={busy} onClick={onClose}>
@@ -693,7 +817,11 @@ function AuditDialog({ api, onClose }: { api: AdminService; onClose: () => void 
   return (
     <Modal
       title="Admin activity log"
-      subtitle="The most recent 200 changes in this demo workspace"
+      subtitle={
+        api.mode === 'demo'
+          ? 'The most recent 200 changes in this demo workspace'
+          : 'Administrative audit history'
+      }
       onClose={onClose}
       wide
     >

@@ -1,0 +1,225 @@
+# Backend admin — nền tảng API
+
+Cập nhật: 03/11/2026. Phạm vi: local/Spark, chưa deploy production.
+
+Bước 2 và bảo vệ admin cuối cùng: [hành vi, API, phục hồi và email](ADMIN-USERS.md).
+
+## Trạng thái
+
+- Export đủ 21 callable tại `asia-southeast1`, dùng chung guard, validator và rate limit.
+- Đã gắn 6 handler Profile/Users của Bước 2. 15 handler thuộc Bước 3–6 tiếp tục trả
+  `unimplemented`. Web mặc định dùng adapter Firebase cho Profile/Users; demo là opt-in.
+- HTTP `getAdminSession` tiếp tục xác nhận phiên đăng nhập; không thay thế guard callable.
+- Không thêm API cấp quyền, đổi rating/xu, sửa kết quả, daily/private, Storage hoặc FCM.
+
+## Hợp đồng và giới hạn
+
+Nguồn runtime: `src/admin/contracts.ts`. Bản JSON Schema dùng cho tích hợp:
+`frontend/contracts/admin.schemas.v1.json`. Ánh xạ phương thức và lỗi:
+`frontend/contracts/admin.v1.json`. Sau khi đổi schema, chạy trong `Backend/functions`:
+
+```powershell
+npm.cmd run build
+npm.cmd run contract:admin
+```
+
+QA kiểm tra bản JSON đã xuất khớp nguồn runtime. Validator không ép kiểu, không âm thầm
+bỏ trường lạ và không trả lỗi kèm raw input. Ngoài schema có kiểm tra quan hệ trường:
+option ID/text khác nhau, đáp án thuộc option, explanation/Reading/TTS khi published,
+revision khi sửa, loại filter export và cutoff đọc thông báo.
+
+| Nội dung | Quy tắc Bước 1 |
+|---|---|
+| Request / response | Tối đa 64 KiB / 2 MiB JSON UTF-8 |
+| ID / requestId | Một segment `[A-Za-z0-9_-]`, 1–128 ký tự; UID đích khác actor UID |
+| Phân trang | 10/20/50; page 1–1000; response có `snapshotId`, `expiresAt`, `nextCursor` |
+| Khoảng ngày | Ngày lịch hợp lệ, bao gồm ngày cuối, tối đa 366 ngày, `Asia/Ho_Chi_Minh` |
+| Search | 1–100 ký tự có nội dung, tối đa 20 kết quả |
+| Export | Tối đa 5.000 dòng và 2 MiB response; filter đầy đủ, không nhận page/cursor |
+| Rate limit | Theo UID, cửa sổ phút server: 120 read, 30 write, 5 export |
+| Sửa dữ liệu | `expectedRevision` cho profile/user/status/content; `expectedVersion` cho câu hỏi |
+| Đọc tất cả thông báo | Một trong `id` hoặc `throughAt`; giữ nguyên cutoff qua retry |
+
+Profile/user/catalog wire DTO thêm `revision`. Audit/thông báo trả `page`, thay danh sách
+không giới hạn. Export cần `requestId`. Adapter Profile/Users đã giữ requestId/payload
+khi retry; các nhóm còn lại sẽ nối theo cùng hợp đồng ở các bước sau.
+
+Profile/Users đã có index, snapshot và phân trang thật ở Bước 2. Các nhóm nội dung,
+trận, thống kê, audit và thông báo được hoàn thiện trong các bước sau.
+Không triển khai offset bằng cách tải root RTDB về trình duyệt.
+
+## Guard
+
+Mọi entrypoint (đọc/ghi/search/audit/export) đi qua `createAdminRuntime`:
+
+1. Yêu cầu callable đã có `request.auth`; đọc Bearer token từ request server.
+2. `verifyIdToken(token, true)` kiểm tra token, hết hạn, revoke và disabled.
+3. UID phải khớp context callable; `admin` phải đúng boolean `true` trong token.
+4. Đọc Auth hiện tại, yêu cầu `customClaims.admin === true`, không disabled.
+5. Đọc `accountAccess/{uid}`, chỉ nhận `active`; thiếu bản ghi cũng bị chặn.
+6. Tại mỗi checkpoint, kiểm tra lại quyền hiện tại và `tokensValidAfterTime`.
+
+Chỉ lưu UID và `auth_time` để worker kiểm tra actor gốc; không lưu ID token. Worker không
+tiếp tục hiệu ứng mới cho actor đã bị thu hồi quyền, revoke, khóa hoặc xóa. Token hết hạn
+sau khi đã tạo operation không hủy công việc đã được cấp quyền; revoke/khóa vẫn chặn.
+Không lấy actor UID hoặc claim từ request payload.
+
+## Operation, đồng thời và phục hồi
+
+`AdminOperations` được dùng cho mọi mutation và export. Handler đăng ký tập trung trong
+`src/admin/service.ts`, kèm version và target ổn định. Không có callable ghi path tùy ý.
+
+- Operation ID = SHA-256 của `[actorUid, action, requestId]`.
+- Payload fingerprint = SHA-256 của JSON sắp xếp key; giữ kiểu và thứ tự array.
+- Reservation được lưu trước hiệu ứng; cùng ID/payload dùng chung operation.
+  Dùng lại ID với payload khác trả `already-exists` / `request-id-conflict`.
+- Lease 60 giây, heartbeat mỗi 15 giây, kiểm tra owner trước/sau từng bước.
+- Khóa target tồn tại bền cho tới kết quả cuối. Operation khác cùng target đợi hoặc
+  trả `aborted`; không ghi đè operation đang dở bằng một requestId mới.
+- `ctx.resourceId` được suy ra từ operation ID trước khi tạo Auth/content. Handler tạo
+  user phải dùng UID này và xử lý trường hợp Auth đã có đúng UID, không tạo UID ngẫu nhiên.
+- `ctx.mutateRecord` gộp revision CAS, thay đổi record và receipt `_adminApplied` vào cùng
+  transaction. Reducer phải thuần và giữ các trường hiện có. Không xóa receipt bằng một
+  lệnh set thay toàn record. Receipt giúp phục hồi khi commit đã xảy ra nhưng mất ACK.
+- `ctx.step` chỉ dùng cho hiệu ứng có thể chạy lại an toàn. Tạo index/event/notification
+  phải dùng key xác định, không dùng push hay cộng dồn không có receipt.
+- `ctx.externalStep` dùng cho Auth/email. Nếu đã lưu checkpoint thành công thì không
+  gọi lại. Nếu lỗi/crash giữa lời gọi và checkpoint thì kết quả là chưa xác định:
+  operation chuyển `blocked`, giữ target lock, không tự chạy lặp.
+  Callback external trả `void`, không lưu Auth record/link đặt mật khẩu làm kết quả bước.
+- RTDB không có transaction chung với Auth. Không tự rollback ví/tiến độ/quyền để
+  che lỗi giữa hai hệ thống. Trạng thái partial và checkpoint được giữ để đối soát.
+- Thành công lưu nguyên envelope dạng JSON string để giữ `[]`/`null`; retry trả chính
+  envelope đó. Timeout sau commit không phải lý do tạo requestId mới.
+- Kết quả `succeeded` có audit chưa ghi xong vẫn nằm trong due-index. Worker hoàn tất
+  audit và mở khóa; không chạy lại handler nghiệp vụ.
+
+Handler Bước 2 phải kiểm tra revision dưới target lock **trước** hiệu ứng Auth, rồi
+đồng bộ Auth/RTDB/index qua các bước riêng. Callback transaction có thể nhận `null`
+từ cache trước khi thấy dữ liệu server: nhánh sửa record phải cho CAS đọc lại, không
+abort ngay vì cache trống. Bộ QA có test cho tình huống này.
+
+Đối với operation `blocked`: kiểm tra checkpoint và Auth/RTDB bằng công cụ server;
+chấm dứt process cũ trước khi đối soát hiệu ứng external chưa rõ kết quả. Chỉ sau đó
+mới thiết kế bản sửa được audit, kiểm tra revision/quyền mới. Bước 1 không cung cấp nút
+web hoặc CLI bỏ qua lock, sửa trạng thái sang thành công hay chạy lại email không rõ kết quả.
+
+## Audit, Rules, index và thời gian lưu
+
+Audit khóa theo operation ID, có actor UID, action, target, thời gian server, lý do,
+kết quả và mã lỗi cố định. Không chép request/response/exception vào audit. Lý do có
+chuỗi nhận diện credential được thay bằng thông báo redacted. Log worker chỉ có mã lỗi
+chuẩn và operation ID. Không lưu password, token, private key hoặc link đặt mật khẩu.
+
+Rules giữ `.read = false`, `.write = false` ở root. Trình duyệt, kể cả có claim admin,
+không được đọc/ghi trực tiếp operation, audit, search/email index, snapshot, báo cáo,
+đáp án, ví, rating hoặc dữ liệu server. Truy cập thông qua callable đã guard.
+`database.rules.json` thêm index due/cleanup/expiry và các index phục vụ bước sau;
+**chưa deploy Rules/index lên Firebase thật**.
+
+| Dữ liệu | Thời gian lưu mặc định |
+|---|---|
+| Snapshot / báo cáo | 15 phút; producer ở bước sau đặt `expiresAt` |
+| Payload, kết quả, checkpoint operation hoàn tất | 7 ngày |
+| Tombstone ID/fingerprint của operation | Giữ bền, không tái sử dụng requestId |
+| Operation bị blocked / lock đang dở | Giữ để đối soát, không xóa tự động |
+| Audit | 365 ngày |
+| Rate bucket | 2 ngày |
+
+Worker xử lý tối đa 25 operation và 25 mục cho mỗi nhánh cleanup trong một lượt,
+có lease housekeeping và giãn tối thiểu 10 giây. Tombstone không cho chạy lại mutation
+sau khi result hết hạn; client đọc lại tài nguyên. Thay đổi chính sách giữ tombstone/
+receipt cần migration riêng để bảo toàn chống lặp.
+
+## Quy tắc cho các bước sau
+
+Profile/Users, mời/đặt mật khẩu, bảo vệ admin cuối cùng và xóa mềm đã được triển khai,
+kiểm thử bằng Emulator theo `ADMIN-USERS.md`. Gửi/nhận email thật vẫn cần nghiệm thu riêng.
+Các mặc định thống kê dưới đây còn chờ triển khai:
+
+- Bước 5: active là distinct UID cả khoảng; một trận là một KPI; accuracy dùng tổng
+  correct/answered; completion dùng tập bắt đầu trong kỳ; kỳ trước cùng độ dài, mẫu
+  số 0 trả null; mixed-skill phân bổ theo câu thực tế. Chỉ trả overview khi projection
+  đã ready, kèm `asOf` và `lagMs`; dữ liệu chưa dựng xong phải báo lỗi rõ.
+
+## Chạy local và QA
+
+Local/Spark từ `frontend/admin-web`:
+
+```powershell
+npm.cmd run dev:local
+```
+
+Launcher dùng Functions Emulator + HTTP server + web + worker học/trận/community/
+reporting/admin. Auth/RTDB ở chế độ này là **dữ liệu thật**. Cần file khóa còn tồn tại
+theo `Backend/server/.env`; lỗi thiếu file in đường dẫn đang được dùng. Không đưa file
+khóa vào Git. Không dùng launcher này để chạy bài test phá hủy/tiêm lỗi.
+
+QA tự động từ `Backend/functions`:
+
+```powershell
+npm.cmd run test:admin
+```
+
+Launcher xóa credential/config thật được kế thừa, không đọc `.env`, chọn project
+`demo-englishbattle-admin` và namespace `demo-englishbattle-admin-default-rtdb`.
+Auth `127.0.0.1:19299`, Database `127.0.0.1:19200`, Functions `127.0.0.1:15003`;
+hub/log/eventarc/tasks lần lượt 14421/14521/19311/19511, UI tắt. Test kiểm tra đích trước
+khi import SDK. Yêu cầu Node 24, Java tương thích Emulator và dependencies đã cài.
+Trên Windows có thể dùng JBR của Android Studio nếu chưa đặt `JAVA_HOME`.
+
+QA gồm schema 21 API, guard toàn bộ entrypoint, HTTP read/write/export, revoked,
+stale/string claim, disabled/banned/deleted, self-protection, duplicate/concurrent,
+revision conflict, mất ACK, lỗi Auth→RTDB, lỗi audit sau commit, expired lease,
+external outcome chưa rõ, rate limit, retention và Rules. Handler kiểm thử chỉ được
+inject trong process test, không export hay bật bằng biến môi trường.
+
+Chưa nghiệm thu Firebase production, email thật, deploy, hoặc các handler Bước 3–6.
+
+## Biên bản nền tảng Bước 1 — 03/11/2026
+
+| Kiểm tra | Kết quả |
+|---|---|
+| Functions lint + TypeScript build | Đạt |
+| Schema admin và semantic validation | 7/7 test đạt; đủ 21 cặp request/response |
+| Admin Auth/RTDB/Functions Emulator riêng | 16/16 test đạt |
+| Hồi quy backend người dùng | 193/193 test đạt |
+| HTTP callable người dùng và worker thật trên Emulator | 10/10 test đạt |
+| Server HTTP unit test + syntax check | 7/7 test đạt; syntax check đạt |
+| Hợp đồng frontend/mobile và kiểm tra export | 9/9 test đạt |
+| Schema JSON đã xuất khớp nguồn runtime | Đạt |
+
+Các test có kết nối loopback đã chạy ngoài sandbox vì sandbox chặn kết nối local
+(`EACCES`). Không dùng Firebase thật cho fixture hoặc tiêm lỗi. Android UI/device,
+luồng gửi email thật, local launcher kết nối dữ liệu thật và production chưa nghiệm thu
+trong mốc này. Kết quả hồi quy chứng minh các ca được chạy; không thay thế nghiệm thu
+đồng bộ Android ở Bước 8.
+
+## Biên bản Bước 2 — 03/11/2026
+
+| Kiểm tra | Kết quả |
+|---|---|
+| Functions toàn bộ lint + TypeScript build | Đạt |
+| Schema admin và semantic validation | 7/7 đạt; JSON xuất khớp runtime |
+| Admin Auth/RTDB/Functions Emulator | 45/45 đạt, gồm nền tảng và Profile/Users |
+| Web unit/component/adapter | 50/50 đạt; production build đạt |
+| Web Profile/Users qua SDK thật nối Emulator | 3/3 đạt: CRUD/reload/hai context, profile, mất quyền |
+| Hồi quy giao diện demo desktop/mobile | 20/20 đạt; 5 trang, modal, overflow và đăng nhập |
+| Server HTTP unit + syntax | 7/7 đạt; syntax đạt |
+| Hợp đồng frontend/mobile và export | 9/9 đạt |
+| Hồi quy BE1 sau provisioning/session/privacy | 193/193 đạt; HTTP/worker 10/10 đạt |
+
+Các ca admin bao phủ khóa membership giữa CLI/API, hai lần revoke đồng thời, admin
+cuối cùng, revision conflict, cùng requestId, lỗi sau Auth/provision/index/audit,
+email trùng do race, pending chỉ đọc, stale index writer, snapshot hơn 50 user,
+khóa khi học/thi đấu, deleted không hồi sinh, ẩn danh khi đọc và retention.
+Worker được kiểm tra không cấp quyền từ pending role intent trong database.
+
+Kiểm thử trên dữ liệu Emulator tách biệt; chưa chạy smoke test Firebase thật, deploy
+Rules/Functions, gửi/nhận thư ở hộp thư thật hoặc kiểm chứng Android trên thiết bị.
+Email `sent` chỉ xác nhận Firebase chấp nhận yêu cầu. Local launcher dùng dữ liệu thật
+vẫn cần đường dẫn khóa Admin SDK hợp lệ trong `Backend/server/.env`.
+
+Tài liệu Firebase tham chiếu: [thu hồi phiên](https://firebase.google.com/docs/auth/admin/manage-sessions),
+[transaction RTDB](https://firebase.google.com/docs/database/admin/save-data),
+[callable](https://firebase.google.com/docs/functions/callable).

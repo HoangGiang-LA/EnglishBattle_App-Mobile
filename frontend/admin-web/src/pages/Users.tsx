@@ -29,6 +29,14 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
     [detail, setDetail] = useState<UserRecord | null>(null),
     [action, setAction] = useState<{ user: UserRecord; status: UserStatus } | null>(null),
     [exporting, setExporting] = useState(false)
+  const [inviting, setInviting] = useState(false)
+  const openDetail = async (user: UserRecord) => {
+    try {
+      setDetail(await api.user(user.id))
+    } catch (error) {
+      toast(message(error), true)
+    }
+  }
   const q = useDebounced(search),
     query = { q, status, page, pageSize: size },
     data = useResource(() => api.users(query), [q, status, page, size])
@@ -152,7 +160,7 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
                     <tr key={u.id}>
                       <td className="muted">{u.code}</td>
                       <td>
-                        <button className="person-link" onClick={() => setDetail(u)}>
+                        <button className="person-link" onClick={() => void openDetail(u)}>
                           <Avatar name={u.name} small />
                           <strong>{u.name}</strong>
                         </button>
@@ -163,7 +171,7 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
                       </td>
                       <td>
                         <div className="row-actions">
-                          {u.status !== 'deleted' ? (
+                          {u.status !== 'deleted' && !u.pendingOperation ? (
                             <>
                               <button
                                 className="icon-btn"
@@ -183,8 +191,10 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
                           ) : (
                             <button
                               className="icon-btn"
-                              aria-label="View deleted user"
-                              onClick={() => setDetail(u)}
+                              aria-label={
+                                u.status === 'deleted' ? 'View deleted user' : 'View pending user'
+                              }
+                              onClick={() => void openDetail(u)}
                             >
                               <Eye size={15} />
                             </button>
@@ -250,14 +260,57 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
                 <dt>Coins</dt>
                 <dd>{number(detail.coins)}</dd>
               </div>
+              {api.mode === 'firebase' && detail.invitationStatus && (
+                <div>
+                  <dt>Invitation</dt>
+                  <dd>{detail.invitationStatus}</dd>
+                </div>
+              )}
             </dl>
             {detail.reason && <p className="info-note">Account action reason: {detail.reason}</p>}
+            {detail.pendingOperation && (
+              <p className="info-note">
+                Account update pending. Editing is paused until it finishes. Reference:{' '}
+                {detail.pendingOperation}
+              </p>
+            )}
           </div>
           <div className="modal-footer">
+            {api.mode === 'firebase' &&
+              detail.status === 'active' &&
+              !detail.pendingOperation &&
+              detail.invitationStatus &&
+              detail.invitationStatus !== 'not_requested' && (
+                <button
+                  className="btn"
+                  disabled={inviting || ['pending', 'sending'].includes(detail.invitationStatus)}
+                  onClick={async () => {
+                    setInviting(true)
+                    try {
+                      const updated = await api.saveUser(
+                        { name: detail.name, email: detail.email },
+                        detail.id,
+                        detail.revision,
+                        true,
+                      )
+                      setDetail(updated)
+                      toast(
+                        'Password setup email queued. Check the invitation status after refresh.',
+                      )
+                    } catch (error) {
+                      toast(message(error), true)
+                    } finally {
+                      setInviting(false)
+                    }
+                  }}
+                >
+                  {inviting ? 'Queuing…' : 'Resend invitation'}
+                </button>
+              )}
             <button className="btn" onClick={() => setDetail(null)}>
               Close
             </button>
-            {detail.status !== 'deleted' && (
+            {detail.status !== 'deleted' && !detail.pendingOperation && (
               <button
                 className="btn btn-primary"
                 onClick={() => {
@@ -298,7 +351,13 @@ function UserEditor({
   return (
     <Modal
       title={user ? 'Edit user' : 'Add user'}
-      subtitle={user ? `${user.code} · Account details` : 'Add a learner to the demo workspace'}
+      subtitle={
+        user
+          ? `${user.code} · Account details`
+          : api.mode === 'demo'
+            ? 'Add a learner to the demo workspace'
+            : 'Invite a learner by email'
+      }
       onClose={close}
       busy={busy}
     >
@@ -309,11 +368,15 @@ function UserEditor({
           setBusy(true)
           setError('')
           try {
-            await api.saveUser({ name, email }, user?.id)
+            const saved = await api.saveUser({ name, email }, user?.id, user?.revision)
             toast(
-              user
-                ? 'Demo user updated.'
-                : 'Demo user added. Firebase Authentication was not changed.',
+              api.mode === 'firebase'
+                ? user
+                  ? 'User updated in Firebase.'
+                  : `Account created. Invitation: ${saved.invitationStatus || 'pending'}.`
+                : user
+                  ? 'Demo user updated.'
+                  : 'Demo user added. Firebase Authentication was not changed.',
             )
             onClose()
           } catch (e) {
@@ -345,8 +408,9 @@ function UserEditor({
             />
           </Field>
           <p className="info-note">
-            Demo changes are local. Real account creation, email updates and access control require
-            a backend connected to Firebase Auth.
+            {api.mode === 'demo'
+              ? 'Demo changes are local. Real account creation, email updates and access control require a backend connected to Firebase Auth.'
+              : 'New learners receive a password setup email. Rating and coins are read only. Saving changes updates the Firebase account.'}
           </p>
           <FormError error={error} />
           {user && (
@@ -418,8 +482,10 @@ function AccountAction({
           setBusy(true)
           setError('')
           try {
-            await api.setUserStatus(user.id, status, reason)
-            toast(`${title}: demo account updated.`)
+            await api.setUserStatus(user.id, status, reason, user.revision)
+            toast(
+              `${title}: ${api.mode === 'demo' ? 'demo account updated.' : 'Firebase account updated.'}`,
+            )
             onClose()
           } catch (e) {
             setError(message(e))
@@ -430,11 +496,17 @@ function AccountAction({
       >
         <div className="modal-body">
           <p>
-            {deleting
-              ? 'The demo account will be removed from the user list. Historical records remain linked to an anonymized user.'
-              : status === 'banned'
-                ? 'The account will be marked as banned in this local preview.'
-                : 'The account will be marked as active in this local preview.'}
+            {api.mode === 'firebase'
+              ? deleting
+                ? 'The account will be disabled and anonymized. Results and valid grants remain; this action cannot be undone.'
+                : status === 'banned'
+                  ? 'The account will be blocked and active sessions handled by the server.'
+                  : 'The account will be reopened. The learner must sign in again.'
+              : deleting
+                ? 'The demo account will be removed from the user list. Historical records remain linked to an anonymized user.'
+                : status === 'banned'
+                  ? 'The account will be marked as banned in this local preview.'
+                  : 'The account will be marked as active in this local preview.'}
           </p>
           <Field label="Reason">
             <textarea

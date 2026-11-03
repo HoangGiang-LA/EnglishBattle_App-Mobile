@@ -1,3 +1,4 @@
+import {enforceUserSession} from "../auth/userSession";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {adminDb} from "../../config/firebaseAdmin";
 import {activeBattleUser} from "../battle/battleAccess";
@@ -33,6 +34,7 @@ const add = (target: Metric, raw: Record<string, unknown>) => {
 };
 export const getStudyStatistics = onCall({region: "asia-southeast1",
   timeoutSeconds: 120, maxInstances: 10}, async (request) => {
+  await enforceUserSession(request);
   const uid = request.auth?.uid;
   await activeBattleUser(uid);
   const {period} = request.data || {};

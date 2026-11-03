@@ -1,3 +1,4 @@
+import {enforceUserSession} from "../auth/userSession";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {adminAuth, adminDb} from "../../config/firebaseAdmin";
 import {WireQuestion, getDateKey, normalizeMode} from "./attemptHelper";
@@ -179,6 +180,7 @@ export const startAttempt = onCall(
     maxInstances: 10,
   },
   async (request) => {
+    await enforceUserSession(request);
     // 1. Auth check
     const uid = request.auth?.uid;
     if (!uid) {

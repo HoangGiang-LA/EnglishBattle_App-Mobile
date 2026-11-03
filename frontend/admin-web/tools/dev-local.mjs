@@ -104,7 +104,8 @@ async function main() {
   }
   env.GOOGLE_APPLICATION_CREDENTIALS = resolve(serverDir, env.GOOGLE_APPLICATION_CREDENTIALS)
   if (!existsSync(env.GOOGLE_APPLICATION_CREDENTIALS)) {
-    throw new Error('Khong tim thay file khoa Admin SDK duoc cau hinh trong Backend/server/.env.')
+    throw new Error('Khong tim thay file khoa Admin SDK: ' + env.GOOGLE_APPLICATION_CREDENTIALS +
+      '. Kiem tra GOOGLE_APPLICATION_CREDENTIALS trong Backend/server/.env va bien moi truong cua terminal.')
   }
   env.HOST = '127.0.0.1'
   env.PORT = '8080'

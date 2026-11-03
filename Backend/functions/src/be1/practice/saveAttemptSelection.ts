@@ -1,3 +1,4 @@
+import {enforceUserSession} from "../auth/userSession";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {adminAuth, adminDb} from "../../config/firebaseAdmin";
 import {contentId} from "./contentValidation";
@@ -8,6 +9,7 @@ import {transactBattle} from "../battle/battleService";
 export const saveAttemptSelection = onCall(
   {region: "asia-southeast1", maxInstances: 10},
   async (request) => {
+    await enforceUserSession(request);
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Sign in first.");
     const {attemptId, questionId, optionId, requestId} = request.data || {};

@@ -38,9 +38,17 @@ npm run admin -- grant FIREBASE_UID
 npm run admin -- revoke FIREBASE_UID
 ```
 
-These commands update Auth claims only. Grant requires an active, enabled user;
-revoke is also available for blocked users. Refresh the client's token after
-granting. No role changes happen automatically during startup or login.
+Build `Backend/functions` before using the role tool. The commands now share a
+durable membership lock with the admin status APIs, protect the last active admin,
+preserve unrelated claims and record audit. Revoke also revokes sessions. Grant
+requires an active, enabled user; revoke is available for blocked users. Refresh
+the client's token after granting. No roles change automatically on startup/login.
+
+For retries, pass `--request-id ID --reason 'Reason'`. If omitted, the command
+prints its generated requestId before making changes; preserve it and the reason
+on retry. An ambiguous Auth result retains its lock for server review. SDK-tool
+audit identifies `server_operator` (service authority), rather than inventing a
+signed-in Firebase UID. See [admin users](../functions/ADMIN-USERS.md).
 
 The imported password-policy tool is optional operator tooling. It is never
 run automatically; `apply` changes the Firebase project and requires separate

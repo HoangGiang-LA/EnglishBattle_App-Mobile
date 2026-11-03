@@ -1,3 +1,4 @@
+import {enforceUserSession} from "../auth/userSession";
 import {createHash, randomUUID} from "node:crypto";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {adminDb} from "../../config/firebaseAdmin";
@@ -86,6 +87,7 @@ const makeSnapshot = async (uid: string): Promise<string> => {
 export const getLeaderboard = onCall(
   {region: "asia-southeast1", maxInstances: 10},
   async (request) => {
+    await enforceUserSession(request);
     const uid = request.auth?.uid;
     await activeBattleUser(uid);
     const {period, cursor} = request.data || {};

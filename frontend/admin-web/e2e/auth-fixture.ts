@@ -54,7 +54,7 @@ export async function mockFirebase(page: Page, { admin = true, allowAdmin = true
   })
   await page.route('http://127.0.0.1:8080/api/getAdminSession', async (route) => {
     const headers = {
-      'Access-Control-Allow-Origin': 'http://127.0.0.1:5173',
+      'Access-Control-Allow-Origin': route.request().headers().origin || new URL(page.url()).origin,
       'Access-Control-Allow-Headers': 'Authorization, Content-Type',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
     }
@@ -74,18 +74,22 @@ export async function mockFirebase(page: Page, { admin = true, allowAdmin = true
     'https://asia-southeast1-englishbattleapp-8d764.cloudfunctions.net/ensureUserProfile',
     'http://127.0.0.1:5001/englishbattleapp-8d764/asia-southeast1/ensureUserProfile',
   ])
-  await page.route(url => profileEndpoints.has(`${url.origin}${url.pathname}`), async route => {
-    const headers = {
-      'Access-Control-Allow-Origin': 'http://127.0.0.1:5173',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Firebase-GMPID',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    }
-    if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({status: 204, headers})
-      return
-    }
-    callOrder.push('ensureUserProfile')
-    await route.fulfill({headers, json: {result: {serverNow: Date.now()}}})
-  })
+  await page.route(
+    (url) => profileEndpoints.has(`${url.origin}${url.pathname}`),
+    async (route) => {
+      const headers = {
+        'Access-Control-Allow-Origin':
+          route.request().headers().origin || new URL(page.url()).origin,
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Firebase-GMPID',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      }
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers })
+        return
+      }
+      callOrder.push('ensureUserProfile')
+      await route.fulfill({ headers, json: { result: { serverNow: Date.now() } } })
+    },
+  )
   return { email, password, backendChecks: () => backendChecks, callOrder }
 }

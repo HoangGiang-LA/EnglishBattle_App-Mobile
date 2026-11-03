@@ -54,3 +54,5 @@ export {
   findBattle, getBattleTicket, cancelBattleSearch,
 } from "./be1/battle/battleCallables";
 export {maintainBattles} from "./be1/battle/battleMaintenance";
+export * from "./admin/callables";
+export {maintainAdmin} from "./admin/maintenance";

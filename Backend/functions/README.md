@@ -1,5 +1,7 @@
 # Backend học tập, thi đấu và tác vụ nền
 
+Nền tảng backend admin Bước 1: [guard, hợp đồng, operation và QA](ADMIN.md).
+
 Thi đấu nhanh, kết nối lại và kết quả bất biến: [luật và vận hành](BATTLE.md).
 Bảng xếp hạng và thông báo: [API, phân trang và phục hồi](COMMUNITY.md).
 Thống kê theo kỳ, thời lượng học và lịch sử: [REPORTING](REPORTING.md).

@@ -11,6 +11,7 @@ import {
 import {BattleMatch, RECONNECT_MS} from "./battleTypes";
 import {enqueueBattleWork} from "./battleWork";
 import {settleBattle} from "./battleSettlement";
+import {visibleOpponentName} from "../auth/userPrivacy";
 
 const unavailablePlayers = async (match: BattleMatch) => {
   const unavailable: string[] = [];
@@ -64,6 +65,10 @@ export async function battleResponse(
   }
   const player = match.players[uid];
   const opponent = Object.keys(match.players).find((id) => id !== uid)!;
+  const opponentName = await visibleOpponentName(
+    match.id, uid, match.players[opponent].name,
+  );
+  if (result) result = {...result, opponentName};
   const waiting =
     match.status === "ready" ||
     !!match.leaveDeadlineAt ||
@@ -86,7 +91,7 @@ export async function battleResponse(
       deadlineAt: match.deadlineAt,
       receipts,
       status: result ? "completed" : waiting ? "waiting" : "active",
-      opponentName: match.players[opponent].name,
+      opponentName,
       result,
       reconnectDeadlineAt:
         result || match.leaveDeadlineAt ?

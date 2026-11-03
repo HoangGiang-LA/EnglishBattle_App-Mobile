@@ -97,8 +97,8 @@ try {
     let injected = false;
     adminDb.ref = function(path) {
       const ref = originalRef.call(this, path);
-      if (path === undefined) {
-        ref.update = async () => { injected = true; throw new Error("Injected local database interruption"); };
+      if (path === `adminUserState/${u.uid}`) {
+        ref.transaction = async () => { injected = true; throw new Error("Injected local database interruption"); };
       }
       return ref;
     };

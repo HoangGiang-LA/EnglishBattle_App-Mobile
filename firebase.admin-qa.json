@@ -1,0 +1,15 @@
+{
+  "functions": [{"source": "Backend/functions", "codebase": "default"}],
+  "database": {"rules": "database.rules.json"},
+  "emulators": {
+    "auth": {"host": "127.0.0.1", "port": 19299},
+    "database": {"host": "127.0.0.1", "port": 19200},
+    "functions": {"host": "127.0.0.1", "port": 15003},
+    "hub": {"host": "127.0.0.1", "port": 14421},
+    "logging": {"host": "127.0.0.1", "port": 14521},
+    "eventarc": {"host": "127.0.0.1", "port": 19311},
+    "tasks": {"host": "127.0.0.1", "port": 19511},
+    "ui": {"enabled": false},
+    "singleProjectMode": true
+  }
+}

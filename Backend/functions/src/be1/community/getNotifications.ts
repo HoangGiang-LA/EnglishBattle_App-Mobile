@@ -1,3 +1,4 @@
+import {enforceUserSession} from "../auth/userSession";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {activeBattleUser} from "../battle/battleAccess";
 import {notificationCounts, notificationSlice} from "./notifications";
@@ -11,6 +12,7 @@ import {
 export const getNotifications = onCall(
   {region: "asia-southeast1", maxInstances: 10},
   async (request) => {
+    await enforceUserSession(request);
     const uid = request.auth?.uid;
     await activeBattleUser(uid);
     const {cursor} = request.data || {};

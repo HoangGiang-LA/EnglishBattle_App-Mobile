@@ -24,13 +24,15 @@ test('all five design pages render without browser errors or page overflow', asy
   page.on('request', (r) => {
     if (
       /^https?:/.test(r.url()) &&
-      !['127.0.0.1', 'identitytoolkit.googleapis.com'].includes(new URL(r.url()).hostname)
+      !['127.0.0.1', 'identitytoolkit.googleapis.com'].includes(new URL(r.url()).hostname) &&
+      r.url() !==
+        'https://asia-southeast1-englishbattleapp-8d764.cloudfunctions.net/ensureUserProfile'
     )
       external.push(r.url())
   })
   const credentials = await mockFirebase(page)
   await page.goto('/')
-  await page.screenshot({ path: `docs/qa/${info.project.name}-login.png`, fullPage: true })
+  await page.screenshot({ path: info.outputPath('login.png'), fullPage: true })
   await enter(page, credentials)
   for (const [nav, title, ready] of [
     ['Dashboard', 'Dashboard', 'Recent Activities'],
@@ -47,7 +49,7 @@ test('all five design pages render without browser errors or page overflow', asy
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
       .toBe(true)
     await page.screenshot({
-      path: `docs/qa/${info.project.name}-${nav.toLowerCase()}.png`,
+      path: info.outputPath(`${nav.toLowerCase()}.png`),
       fullPage: true,
     })
   }
@@ -95,7 +97,7 @@ test('question editor fits the viewport and publishes a validated question', asy
   await page.getByLabel('Answer explanation').fill('Hot is the opposite of cold.')
   await page.getByLabel('Publication status').selectOption('published')
   await page.screenshot({
-    path: `docs/qa/${info.project.name}-question-editor.png`,
+    path: info.outputPath('question-editor.png'),
     fullPage: true,
   })
   await page.getByRole('button', { name: 'Learner preview' }).click()
@@ -116,7 +118,7 @@ test('battle log, date filters, notifications and report download work', async (
   await page.getByLabel('Battle mode').selectOption('private')
   await page.getByRole('button', { name: 'View logs #B18640' }).click()
   await expect(page.getByText('Room created with a fixed set of 10 questions.')).toBeVisible()
-  await page.screenshot({ path: `docs/qa/${info.project.name}-battle-log.png`, fullPage: true })
+  await page.screenshot({ path: info.outputPath('battle-log.png'), fullPage: true })
   await page.getByRole('button', { name: 'Close log' }).click()
   await navigate(page, 'Analytics')
   await page.getByLabel('Quick date range').selectOption('180')

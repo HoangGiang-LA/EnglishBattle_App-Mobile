@@ -30,4 +30,12 @@ module.exports = {
     "import/no-unresolved": 0,
     "indent": ["error", 2],
   },
+  overrides: [{
+    files: ["src/admin/**/*.ts", "src/be1/auth/*.ts"],
+    rules: {
+      "max-len": ["error", {code: 120, ignoreStrings: true}],
+      "require-jsdoc": "off",
+      "valid-jsdoc": "off",
+    },
+  }],
 };

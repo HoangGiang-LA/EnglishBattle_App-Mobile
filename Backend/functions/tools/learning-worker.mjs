@@ -18,19 +18,20 @@ const {runLearningMaintenance} = require('../lib/be1/practice/learningMaintenanc
 const {runBattleMaintenance} = require('../lib/be1/battle/battleMaintenance.js')
 const {runCommunityMaintenance} = require('../lib/be1/community/communityMaintenance.js')
 const {runReportingMaintenance} = require('../lib/be1/reporting/maintenance.js')
+const {runAdminMaintenance} = require('../lib/admin/maintenance.js')
 const {adminDb} = require('../lib/config/firebaseAdmin.js')
 const {deleteApp} = require('firebase-admin/app')
 let stopping = false
 process.once('SIGINT', () => { stopping = true })
 process.once('SIGTERM', () => { stopping = true })
 const once = process.argv.includes('--once')
-console.log('Learning and battle worker: deadlines, reconnect and settlement recovery ready.')
+console.log('Learning, battle and admin worker: deadlines, settlement and operation recovery ready.')
 try {
   do {
-    const passes = await Promise.allSettled([runLearningMaintenance(), runBattleMaintenance(), runCommunityMaintenance(), runReportingMaintenance()])
+    const passes = await Promise.allSettled([runLearningMaintenance(), runBattleMaintenance(), runCommunityMaintenance(), runReportingMaintenance(), runAdminMaintenance()])
     for (const [index, pass] of passes.entries()) {
       if (pass.status !== 'rejected') continue
-      console.error(`${['Learning', 'Battle', 'Community', 'Reporting'][index]} worker pass failed:`,
+      console.error(`${['Learning', 'Battle', 'Community', 'Reporting', 'Admin'][index]} worker pass failed:`,
         pass.reason.code || pass.reason.message)
       if (once) process.exitCode = 1
     }

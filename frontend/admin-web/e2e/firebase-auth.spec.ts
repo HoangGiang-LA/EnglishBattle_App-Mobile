@@ -79,6 +79,8 @@ test('verified admin sign-in opens Dashboard, restores the page and signs out of
   await expect(page.getByText('SDK Test User', { exact: true })).toBeVisible()
   expect(auth.backendChecks()).toBeGreaterThan(0)
   expect(auth.callOrder[0]).toBe('ensureUserProfile')
+  const menu = page.getByRole('button', { name: 'Open navigation' })
+  if (await menu.isVisible()) await menu.click()
   await page.getByRole('navigation').getByRole('link', { name: 'Users', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'User Management', exact: true })).toBeVisible()
   await page.reload()

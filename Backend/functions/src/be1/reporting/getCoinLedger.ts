@@ -1,3 +1,4 @@
+import {enforceUserSession} from "../auth/userSession";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {activeBattleUser} from "../battle/battleAccess";
 import {newCursor, PAGE_TTL_MS, readCursor} from "../community/pagination";
@@ -8,6 +9,7 @@ import {readFeed} from "./history";
 export const getCoinLedger = onCall(
   {region: "asia-southeast1", maxInstances: 10},
   async (request) => {
+    await enforceUserSession(request);
     const uid = request.auth?.uid;
     await activeBattleUser(uid);
     const {cursor} = request.data || {};

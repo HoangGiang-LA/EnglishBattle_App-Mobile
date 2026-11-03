@@ -1,3 +1,4 @@
+import {enforceUserSession} from "../auth/userSession";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {battleId, battleSession} from "../battle/battleAccess";
 import {memberBattleResponse} from "../battle/battleService";
@@ -15,6 +16,7 @@ export const leaveAttempt = onCall(
     maxInstances: 10,
   },
   async (request) => {
+    await enforceUserSession(request);
     // 1. Auth check
     const uid = request.auth?.uid;
     if (!uid) {

@@ -2,6 +2,18 @@
   "rules": {
     ".read": false,
     ".write": false,
+    "adminOperations": {".indexOn": ["dueAt", "cleanupAt"]},
+    "adminRoleOperations": {".indexOn": ["dueAt", "cleanupAt"]},
+    "adminAudit": {".indexOn": ["at", "expiresAt"]},
+    "adminRateLimits": {".indexOn": ["expiresAt"]},
+    "adminSnapshots": {".indexOn": ["expiresAt"]},
+    "adminReports": {".indexOn": ["expiresAt"]},
+    "adminUserIndex": {".indexOn": ["nameKey", "emailKey", "createdAt", "updatedAt", "status"]},
+    "adminInvitations": {".indexOn": ["dueAt", "cleanupAt"]},
+    "adminQuestionIndex": {".indexOn": ["textKey", "updatedAt", "status", "categoryId", "lessonId"]},
+    "adminBattleIndex": {".indexOn": ["startedAt", "status", "mode", "categoryId"]},
+    "adminActivityIndex": {".indexOn": ["at", "type", "categoryId"]},
+    "adminNotifications": {"$uid": {".indexOn": ["at", "read"]}},
     "communityCursors": {".indexOn": ["expiresAt"]},
     "communityRankings": {".indexOn": ["expiresAt"]},
     "learningWork": {
@@ -30,7 +42,7 @@
     },
     "practiceAttempts": {
       "$uid": {
-        ".indexOn": ["finishedAt"]
+        ".indexOn": ["finishedAt", "status"]
       }
     },
     "notifications": {

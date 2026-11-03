@@ -11,6 +11,7 @@ export interface AdminProfile {
   name: string
   email: string
   role: 'administrator'
+  revision?: number
 }
 export interface UserRecord {
   id: string
@@ -23,6 +24,9 @@ export interface UserRecord {
   rating: number
   coins: number
   reason?: string
+  revision?: number
+  invitationStatus?: 'not_requested' | 'pending' | 'sending' | 'sent' | 'failed' | 'unknown'
+  pendingOperation?: string
 }
 export interface Category {
   id: SkillId
@@ -204,14 +208,25 @@ export type ContentInput = {
 
 /** Server adapters must implement these methods with bounded, authorized APIs. */
 export interface AdminService {
-  readonly mode: 'demo'
+  readonly mode: 'demo' | 'firebase'
+  readonly storageWarning?: string | null
   profile(): Promise<AdminProfile>
-  saveProfile(name: string): Promise<AdminProfile>
+  saveProfile(name: string, expectedRevision?: number): Promise<AdminProfile>
   overview(range: DateRange, categoryId?: string): Promise<Overview>
   users(query: ListQuery): Promise<Page<UserRecord>>
   user(id: string): Promise<UserRecord>
-  saveUser(input: UserInput, id?: string): Promise<UserRecord>
-  setUserStatus(id: string, status: UserStatus, reason: string): Promise<void>
+  saveUser(
+    input: UserInput,
+    id?: string,
+    expectedRevision?: number,
+    resendInvitation?: boolean,
+  ): Promise<UserRecord>
+  setUserStatus(
+    id: string,
+    status: UserStatus,
+    reason: string,
+    expectedRevision?: number,
+  ): Promise<void>
   questions(query: ListQuery): Promise<Page<QuestionRecord>>
   question(id: string): Promise<QuestionRecord>
   saveQuestion(input: QuestionInput, id?: string, expectedVersion?: number): Promise<QuestionRecord>

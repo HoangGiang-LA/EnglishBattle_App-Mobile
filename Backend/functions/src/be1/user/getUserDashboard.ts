@@ -1,3 +1,4 @@
+import {enforceUserSession} from "../auth/userSession";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {adminAuth, adminDb} from "../../config/firebaseAdmin";
 import {refreshBattleAchievements} from "../battle/battleAchievements";
@@ -43,6 +44,7 @@ export const getUserDashboard = onCall(
     maxInstances: 10,
   },
   async (request) => {
+    await enforceUserSession(request);
     const uid = request.auth?.uid;
 
     if (!uid) {

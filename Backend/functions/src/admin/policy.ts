@@ -1,0 +1,20 @@
+/** Shared bounds. Changes to these values require updating ADMIN.md. */
+export const ADMIN_POLICY = Object.freeze({
+  region: "asia-southeast1",
+  timeZone: "Asia/Ho_Chi_Minh",
+  requestBytes: 64 * 1024,
+  responseBytes: 2 * 1024 * 1024,
+  maxRangeDays: 366,
+  maxPage: 1000,
+  maxExportRows: 5000,
+  leaseMs: 60000,
+  snapshotMs: 15 * 60000,
+  reportMs: 15 * 60000,
+  operationDataMs: 7 * 86400000,
+  auditMs: 365 * 86400000,
+  rateDataMs: 2 * 86400000,
+  readsPerMinute: 120,
+  writesPerMinute: 30,
+  exportsPerMinute: 5,
+  maintenanceBatch: 25,
+});

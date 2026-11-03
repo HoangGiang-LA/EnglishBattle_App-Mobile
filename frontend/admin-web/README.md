@@ -1,6 +1,6 @@
 # English Battle — Web admin
 
-Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. Các trang nghiệp vụ vẫn dùng `MockAdminService`, chưa ghi dữ liệu quản trị lên Firebase.
+Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. **Mặc định Profile và Users dùng Firebase thật qua 6 callable admin.** Các nhóm còn lại báo chưa triển khai, không trả dữ liệu mẫu. Bố cục 5 trang được giữ lại.
 
 ## Chạy trên máy của bạn
 
@@ -13,7 +13,7 @@ npm.cmd run dev:local
 
 Lệnh này build Functions rồi chạy Functions Emulator tại `127.0.0.1:5001`, tác vụ nền học tập, server xác nhận quyền tại `127.0.0.1:8080` và web tại **http://127.0.0.1:5173/**. Giữ terminal mở; nhấn `Ctrl+C` để dừng các dịch vụ. Nếu cổng đang bận, dừng dịch vụ cũ trước khi chạy lại.
 
-Firebase Authentication và Realtime Database vẫn dùng tài khoản/dữ liệu thật của project hiện tại. `ensureUserProfile` chạy trên máy và có thể khởi tạo các bản ghi còn thiếu trong database thật. Đăng nhập bằng tài khoản đã có claim `admin: true`; quyền vẫn được kiểm tra bởi server. Các trang nghiệp vụ vẫn dùng dữ liệu mẫu. Chế độ này cần Internet cho Auth/Database, không yêu cầu deploy Functions hoặc nâng cấp Blaze.
+Firebase Authentication và Realtime Database dùng tài khoản/dữ liệu thật của project hiện tại. `ensureUserProfile` chỉ khởi tạo các bản ghi còn thiếu, không reset ví hoặc tiến độ. Đăng nhập bằng tài khoản đã có claim `admin: true`; quyền được kiểm tra tại từng callable. Thêm/sửa/khóa/xóa user và lưu tên admin thay đổi Firebase. Worker xử lý index, email mời và phục hồi cùng các tác vụ học/thi đấu. Chế độ này cần Internet cho Auth/Database, không yêu cầu deploy Functions hoặc nâng cấp Blaze.
 
 Chuẩn bị một lần: cài thư viện bằng `npm ci` trong `Backend/functions`, `Backend/server`, `frontend/verification` và `frontend/admin-web`. File `Backend/server/.env` phải có project/database đúng và `GOOGLE_APPLICATION_CREDENTIALS` trỏ tới khóa Admin SDK trên máy. Script đọc cấu hình này cho các tiến trình backend; không đưa khóa vào web. Không đặt `FIREBASE_AUTH_EMULATOR_HOST` hoặc `FIREBASE_DATABASE_EMULATOR_HOST` trong chế độ dùng Firebase thật.
 
@@ -29,7 +29,7 @@ Cấu hình người dùng cung cấp nằm trong [`src/firebase/config.ts`](src
 2. Dùng tài khoản đã có trong **Authentication → Users**, hoặc tạo tài khoản thử tại đó. Nhập mật khẩu trực tiếp trên trang đăng nhập; không gửi mật khẩu vào chat hoặc file cấu hình.
 3. UID phải được provision qua BE1; người quản trị tin cậy cấp claim bằng công cụ trong `Backend/server`. Không có thao tác tự cấp admin từ web.
 4. Đăng nhập hoặc Refresh access: web chờ Callable `ensureUserProfile` rồi gửi ID token tới `/api/getAdminSession`. Server kiểm tra cả claim hiện tại, disabled và accountAccess.
-5. Quyền hợp lệ mới mở workspace. Các trang vẫn là dữ liệu mẫu, không phải Admin API thật.
+5. Quyền hợp lệ mới mở workspace. Profile và Users dùng API thật; tạo user đưa email đặt mật khẩu vào hàng đợi, chi tiết user hiển thị trạng thái gửi. Ban/delete xử lý phiên đang chạy theo engine; deleted không thể mở lại.
 
 Phiên Firebase dùng `browserSessionPersistence`; ứng dụng không lưu mật khẩu. Có khôi phục phiên trong tab, đăng xuất và làm mới claim. Nếu báo `auth/unauthorized-domain`, kiểm tra Authorized domains của project.
 
@@ -39,7 +39,18 @@ Trong production, cấu hình `VITE_BACKEND_BASE_URL` là HTTPS và cho phép or
 
 Giao diện dùng tiếng Anh như 5 ảnh thiết kế. Font Inter và icon được đóng gói cục bộ, không cần gọi CDN.
 
-## Chức năng đã có
+## Chế độ thật hiện có
+
+- Profile: đọc tên/email Auth, sửa tên với revision; không đổi quyền hoặc email đăng nhập của chính mình qua form này.
+- Users: tìm tên/email/UID/mã, phân trang 10/20/50 bằng snapshot server, tạo/mời, sửa, khóa/mở khóa và xóa mềm có lý do.
+- Rating/xu chỉ đọc. Không cấp custom claim từ web. Chặn tự ban/delete và bảo vệ admin cuối cùng cùng công cụ server.
+- Lưu requestId/payload theo UID trong sessionStorage trước khi gửi; khôi phục phiên thử lại đúng intent cũ để xác minh sau timeout/reload. Lỗi giữ dữ liệu form, version conflict yêu cầu đọc lại.
+- User đang có operation dở chỉ được xem. Deleted ẩn danh, giữ kết quả/grant/ledger hợp lệ. Không có nút reset dữ liệu thật.
+- Các nhóm Dashboard/Content/Battles/Analytics/search/notification/audit browsing/export hiện báo chưa triển khai. Xem [backend Bước 2](../../Backend/functions/ADMIN-USERS.md) cho giới hạn, email và phục hồi.
+
+## Chế độ demo để xem thiết kế
+
+Đặt `VITE_ADMIN_DATA_MODE=demo` trước khi chạy Vite nếu cần dữ liệu mẫu. Demo vẫn dùng Firebase để xác nhận quyền vào workspace; các thao tác nghiệp vụ sau đó chỉ lưu cục bộ. Không tự bật demo khi API lỗi. Các luồng sau chỉ có dữ liệu mô phỏng trong chế độ demo:
 
 | Phần                | Luồng trong frontend                                                                                                                                                         |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -55,10 +66,10 @@ Giữ rating và xu; không có XP/level, Premium, thanh toán hoặc doanh thu.
 
 ## Dữ liệu và giới hạn
 
-- Các trang quản trị vẫn là **demo frontend**, kể cả bản `npm run build`. Phần xác thực đã dùng Firebase SDK thật; đăng nhập thành công mở màn hình trạng thái tích hợp, chưa mở dữ liệu admin thật. Nút demo không xác thực quyền quản trị.
+- Bản build mặc định là chế độ Firebase. Demo là opt-in và có nhãn riêng; các giới hạn mô phỏng dưới đây chỉ áp dụng khi bật demo.
 - Dữ liệu mô phỏng được lưu trong `localStorage` theo khóa `english-battle.admin.demo.v1`. Phiên demo lưu trong `sessionStorage`. Thao tác trong demo không tạo tài khoản hoặc thay đổi dữ liệu Firebase thật.
 - Mỗi trình duyệt có bộ dữ liệu riêng. Đăng xuất giữ dữ liệu; chọn menu tài khoản → **Profile & workspace → Reset demo data** và nhập `RESET` để khôi phục mẫu. Dữ liệu demo không phải cơ chế đồng bộ nhiều admin.
-- Người dùng bị xóa được ẩn và đổi thành “Deleted user” trong lịch sử demo. Chưa có tác động đến Firebase Auth hoặc phiên đang chạy trên điện thoại.
+- Trong demo, người dùng bị xóa được đổi thành “Deleted user” trong lịch sử mẫu. Chế độ thật có xóa mềm, disabled Auth, revoke phiên và ẩn danh khi đọc lịch sử thật.
 - Câu hỏi thay đổi có phiên bản mới; demo giữ tối đa 20 bản trước đó. Đây không phải hệ thống lưu trữ lịch sử production.
 - Audio tải lên tối đa 2 MB, lưu cục bộ cho demo. Khi hết dung lượng, thao tác báo lỗi và không commit. URL phải dùng HTTPS; phát được hay không còn phụ thuộc file và máy chủ nguồn. TTS dùng giọng do trình duyệt hỗ trợ.
 - Các trận có trạng thái mẫu cố định; nút Refresh nạp lại dữ liệu mẫu, không mô phỏng người thật đang thi đấu. Log chỉ để xem; chưa có nghiệp vụ hủy trận/đảo kết quả/tố cáo.
@@ -72,6 +83,7 @@ src/
   domain.ts            # Model và hợp đồng AdminService cho tích hợp sau
   context.ts           # Service, ngày chọn và thông báo dùng chung
   data/
+    firebase-service.ts # Adapter Profile/Users thật; giữ nonce/revision/snapshot và lỗi
     mock-service.ts    # Mô phỏng có kiểm tra dữ liệu, lưu và nhật ký
     metrics.ts         # Tính KPI từ dữ liệu mẫu
     seed.ts            # Khởi tạo người dùng/trận/hoạt động mẫu
@@ -83,6 +95,8 @@ e2e/                   # Kiểm thử Edge desktop/mobile
 docs/design-reference/ # 5 ảnh thiết kế do người dùng cung cấp
 docs/qa/               # Ảnh chụp app từ kiểm thử trình duyệt
 ```
+
+Nghiệm thu Profile/Users với SDK thật nối Emulator riêng: chạy `npm.cmd run test:admin:web` trong `Backend/functions`. Launcher dùng project `demo-englishbattle-admin`, web 15173, HTTP 18180 và Auth/Database/Functions 19299/19200/15003, không đọc credential thật. Bộ `npm.cmd run test:e2e` thông thường kiểm tra demo desktop/mobile ở cổng riêng 15174.
 
 `tools/refresh-demo-content.ps1` chỉ đọc seed trong repository và ghi lại snapshot cho frontend admin; không kết nối Firebase hoặc sửa backend:
 
