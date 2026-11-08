@@ -134,3 +134,9 @@ Kiểm thử trình duyệt mặc định dùng Edge đã cài trên Windows. M�
 Web App đã được người dùng đăng ký và cấu hình vào frontend. Tích hợp dữ liệu quản trị thật vẫn cần backend/API/Rules. Không có tài khoản hoặc bản ghi nào được tạo trên Firebase trong quá trình kiểm thử tự động.
 
 Dependency override `@grpc/grpc-js@1.14.6` xử lý advisory của phụ thuộc Node đi kèm gói Firebase tổng hợp. Web này chỉ import App/Auth/Realtime Database; không dùng Firestore hoặc gRPC trong trình duyệt.
+
+## Kết nối web — Bước 7
+
+Adapter có vòng đời riêng theo UID: đổi tài khoản/mất quyền đóng workspace và bỏ phản hồi cũ. Các lần gửi cùng thao tác đang chờ dùng chung request; payload được chụp trước dispatch và giữ qua timeout. Form khóa khi gửi, giữ giá trị khi lỗi. Profile/user/danh mục đọc revision mới trước khi mở editor; server vẫn từ chối conflict.
+
+Trang 1 của Users/Questions tạo snapshot mới, các trang sau giữ snapshot và kích thước 10/20/50. Build mặc định Firebase có kiểm tra không chứa mock/seed; mode cấu hình sai bị từ chối. Xem [quy tắc và kiểm chứng Bước 7](../../Backend/functions/ADMIN-INTEGRATION.md).

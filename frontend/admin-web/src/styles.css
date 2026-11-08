@@ -1409,6 +1409,9 @@ table th:last-child {
   overflow: auto;
   overscroll-behavior: contain;
 }
+.modal-content {
+  min-inline-size: 0;
+}
 .modal-wide {
   max-width: 780px;
 }

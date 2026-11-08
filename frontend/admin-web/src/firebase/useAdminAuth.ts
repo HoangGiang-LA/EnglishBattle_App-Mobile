@@ -18,15 +18,27 @@ export function useAdminAuth(loadGateway: () => Promise<AuthGateway> = loadAuthG
   const gateway = useRef<AuthGateway | null>(null)
   const mounted = useRef(true)
   const running = useRef(false)
+  const currentSession = useRef<FirebaseSession | null>(null)
+  const identity = useRef(0)
+  const actionGeneration = useRef(0)
 
+  const publish = (value: FirebaseSession | null) => {
+    const previous = currentSession.current
+    if (previous?.uid !== value?.uid || previous?.isAdmin !== value?.isAdmin) identity.current++
+    currentSession.current = value
+    setSession(value)
+  }
   useEffect(() => {
     let closed = false
     let unsubscribe: (() => void) | undefined
     mounted.current = true
     gateway.current = null
+    actionGeneration.current++
+    running.current = false
+    setBusy(false)
     setReady(false)
     setChecking(true)
-    setSession(null)
+    publish(null)
     setError('')
     setReloadRequired(false)
     void loadGateway()
@@ -37,13 +49,13 @@ export function useAdminAuth(loadGateway: () => Promise<AuthGateway> = loadAuthG
         unsubscribe = api.subscribe(
           (value) => {
             if (closed) return
-            setSession(value)
+            publish(value)
             setChecking(false)
             setError('')
           },
           (failure) => {
             if (closed) return
-            setSession(null)
+            publish(null)
             setChecking(false)
             setError(authError(failure))
           },
@@ -61,22 +73,34 @@ export function useAdminAuth(loadGateway: () => Promise<AuthGateway> = loadAuthG
       closed = true
       mounted.current = false
       gateway.current = null
+      actionGeneration.current++
+      running.current = false
       unsubscribe?.()
     }
   }, [loadGateway, revision])
 
-  async function run(action: (api: AuthGateway) => Promise<void>) {
-    if (running.current || !gateway.current) return
+  async function run(action: (api: AuthGateway, isCurrent: () => boolean) => Promise<void>) {
+    const api = gateway.current
+    if (running.current || !api) return
+    const generation = ++actionGeneration.current
+    const account = identity.current
+    const isCurrent = () =>
+      mounted.current &&
+      gateway.current === api &&
+      actionGeneration.current === generation &&
+      identity.current === account
     running.current = true
     setBusy(true)
     setError('')
     try {
-      await action(gateway.current)
+      await action(api, isCurrent)
     } catch (failure) {
-      if (mounted.current) setError(authError(failure))
+      if (isCurrent()) setError(authError(failure))
     } finally {
-      running.current = false
-      if (mounted.current) setBusy(false)
+      if (gateway.current === api && actionGeneration.current === generation) {
+        running.current = false
+        if (mounted.current) setBusy(false)
+      }
     }
   }
 
@@ -89,15 +113,22 @@ export function useAdminAuth(loadGateway: () => Promise<AuthGateway> = loadAuthG
     reloadRequired,
     signIn: (email: string, password: string) => run((api) => api.signIn(email, password)),
     signOut: () =>
-      run(async (api) => {
+      run(async (api, isCurrent) => {
         await api.signOut()
-        if (mounted.current) setSession(null)
+        if (isCurrent()) publish(null)
       }),
     refresh: () =>
-      run(async (api) => {
+      run(async (api, isCurrent) => {
         const refreshed = await api.refresh()
-        if (mounted.current) setSession(refreshed)
+        if (isCurrent()) publish(refreshed)
       }),
+    invalidate: (failure: string) => {
+      actionGeneration.current++
+      running.current = false
+      publish(null)
+      setBusy(false)
+      setError(failure)
+    },
     retrySetup: () => {
       if (reloadRequired) window.location.reload()
       else setRevision((value) => value + 1)

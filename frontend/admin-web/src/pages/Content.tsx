@@ -45,7 +45,7 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
     () => () => {
       opening.current++
     },
-    [tab, q, category, status, difficulty, page, size],
+    [api, tab, search, category, status, difficulty, page, size],
   )
   const openQuestion = async (question: QuestionRecord, archive = false) => {
     const generation = ++opening.current
@@ -54,6 +54,35 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
       if (generation !== opening.current) return
       if (archive) setArchive(current)
       else setEditor(current)
+    } catch (error) {
+      if (generation === opening.current) toast(message(error), true)
+    }
+  }
+  const openContent = async (input: ContentInput) => {
+    const generation = ++opening.current
+    try {
+      const fresh = await api.catalog()
+      const record = (
+        input.kind === 'category'
+          ? fresh.categories
+          : input.kind === 'topic'
+            ? fresh.topics
+            : fresh.lessons
+      ).find((row) => row.id === input.id)
+      if (!record) throw new Error('Nội dung không còn tồn tại. Làm mới danh sách.')
+      if (generation !== opening.current) return
+      setContentEditor({
+        ...input,
+        ...record,
+        title: 'name' in record ? record.name : record.title,
+        ...(input.kind === 'lesson'
+          ? {
+              categoryId: fresh.topics.find(
+                (topic) => topic.id === ('topicId' in record ? record.topicId : undefined),
+              )?.categoryId,
+            }
+          : {}),
+      })
     } catch (error) {
       if (generation === opening.current) toast(message(error), true)
     }
@@ -379,7 +408,7 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
                     {shownRows.map((row) => (
                       <tr key={row.id}>
                         <td>
-                          <button className="question-link" onClick={() => setContentEditor(row)}>
+                          <button className="question-link" onClick={() => void openContent(row)}>
                             {row.title}
                           </button>
                           <span className="record-id">{row.id}</span>
@@ -396,7 +425,7 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
                           <button
                             className="icon-btn"
                             aria-label={`Edit ${row.title}`}
-                            onClick={() => setContentEditor(row)}
+                            onClick={() => void openContent(row)}
                           >
                             <Pencil size={15} />
                           </button>

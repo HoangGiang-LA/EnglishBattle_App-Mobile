@@ -93,6 +93,8 @@ test('Content saves real topic and lesson metadata and shows a concurrent revisi
   await page.getByRole('tab', { name: /^Topics/ }).click()
   await page.getByRole('searchbox').fill(title)
   await page.getByRole('button', { name: title, exact: true }).click()
+  // Opening now fetches the current revision; only change it remotely after the editor is ready.
+  await expect(page.getByRole('dialog').getByLabel('Title', { exact: true })).toHaveValue(title)
   const topics = await read('topics')
   const id = Object.keys(topics).find((id) => topics[id].title === title)!
   expect(topics[id].revision).toBe(1)

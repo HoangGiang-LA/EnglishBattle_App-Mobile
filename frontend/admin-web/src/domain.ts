@@ -265,6 +265,8 @@ export type ContentInput = {
 /** Server adapters must implement these methods with bounded, authorized APIs. */
 export interface AdminService {
   readonly mode: 'demo' | 'firebase'
+  /** Ends this browser workspace; it does not revoke the Firebase account. */
+  dispose?(): void
   readonly storageWarning?: string | null
   profile(): Promise<AdminProfile>
   saveProfile(name: string, expectedRevision?: number): Promise<AdminProfile>

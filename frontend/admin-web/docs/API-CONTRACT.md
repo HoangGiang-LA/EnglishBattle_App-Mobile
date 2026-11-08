@@ -58,6 +58,12 @@ Báo cáo Users/Questions/Battles xuất toàn bộ tập lọc trên server, b�
 
 Tối đa 5.000 dòng, 1 MiB CSV, dưới 2 MiB JSON và 20 giây capture. Vượt giới hạn báo lỗi và yêu cầu thu hẹp bộ lọc; chưa có job báo cáo lớn. Timeout bước nhận giữ intent để retry, khôi phục phiên không tự tải file xuống.
 
+## Vòng đời workspace và form
+
+Adapter có `dispose()` nội bộ khi đổi phiên; phản hồi muộn không cập nhật workspace mới hoặc xóa intent chưa xác minh. App đóng workspace ngay khi mất quyền và tiếp tục signOut. Các lần mutation đồng thời có cùng payload dùng chung promise, payload được chụp sâu trước khi gửi. Form khóa trong lúc chờ và giữ giá trị sau lỗi. Editor hồ sơ/user/danh mục đọc revision mới khi mở; câu hỏi đọc version mới. Trang 1 Users/Questions tạo snapshot mới, các trang tiếp theo giữ cùng snapshot.
+
+Build Firebase kiểm tra không chứa module mock/seed; cấu hình mode chỉ nhận firebase/demo. Chi tiết tại [Bước 7](../../../Backend/functions/ADMIN-INTEGRATION.md).
+
 ## Nghiệp vụ và lỗi
 
 Rating/xu chỉ đọc; tài khoản deleted không mở lại. Nội dung sửa tạo version bất biến, không thay đề phiên cũ. Listening dùng TTS; audio upload, daily/private, FCM và đảo kết quả trận thuộc phạm vi riêng.

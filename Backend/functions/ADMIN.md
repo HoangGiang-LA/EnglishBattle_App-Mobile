@@ -7,6 +7,7 @@ Bước 3: [danh mục, ngân hàng câu hỏi, phiên bản và TTS](ADMIN-CONT
 Bước 4: [giám sát trận, hoạt động, dữ liệu riêng tư và worker](ADMIN-MONITORING.md).
 Bước 5: [Dashboard/Analytics, cohort, dữ liệu tổng hợp và rebuild](ADMIN-ANALYTICS.md).
 Bước 6: [tìm kiếm, hộp thư admin, audit và xuất CSV](ADMIN-WORKSPACE.md).
+Bước 7: [kết nối web, vòng đời phiên, retry và form](ADMIN-INTEGRATION.md).
 
 ## Trạng thái
 
@@ -355,3 +356,54 @@ kiểm chứng Android trên thiết bị trong mốc này. Local/Spark dùng d�
 khóa Admin SDK hợp lệ và terminal/worker đang chạy. Báo cáo lớn hơn 5.000 dòng/1 MiB
 trả lỗi rõ; chưa có job export lớn. Daily/private, Storage/audio upload và FCM giữ
 phạm vi riêng.
+
+## Biên bản Bước 7 — 08/11/2026
+
+Đã rà và hoàn thiện adapter đủ 21 API, App/AdminContext theo UID, 5 trang và các tiện ích
+dùng chung. Chi tiết hành vi và giới hạn tại [`ADMIN-INTEGRATION.md`](ADMIN-INTEGRATION.md).
+
+| Kiểm tra trên mã cuối | Kết quả |
+|---|---|
+| Web unit/component/adapter | 86/86, gồm 19 ca kết nối mới |
+| Firebase SDK qua HTTP/callable/Auth/Database Emulator | 18/18 |
+| Hồi quy giao diện desktop/mobile | 20/20 |
+| Schema đủ 21 API, export khớp runtime | 8/8 |
+| Functions lint và TypeScript build trong launcher web | Đạt |
+| Web production build Firebase và build demo opt-in | Đạt |
+| Bundle Firebase không chứa module mock/seed | Đạt, kiểm tra trong Vite generateBundle |
+| Hợp đồng frontend/mobile và kiểm tra export | 9/9 |
+| Format nguồn web/fixture thay đổi | Đạt |
+| Local launcher syntax; env/project và file credential tồn tại | Đạt về cấu hình, chưa xác thực credential với Firebase thật |
+
+Đã kiểm tra adapter đóng khi đổi phiên, bỏ phản hồi muộn, giữ requestId/payload khi
+workspace đóng trước acknowledgement, dùng chung mutation đồng thời và chụp sâu payload.
+Form khóa khi gửi, mở lại và giữ giá trị khi timeout/validation/conflict; API chưa hỗ trợ
+báo lỗi và không mở dữ liệu mẫu. Refresh Auth từ tài khoản cũ không ghi đè session mới;
+mất quyền đóng workspace ngay cả khi signOut còn chờ. Lỗi terminal của intent phiên cũ
+không tự đăng xuất phiên hiện tại hợp lệ.
+
+Editor Profile/Users/Catalog đọc dữ liệu và revision hiện tại khi mở; question editor
+giữ luồng đọc version hiện tại. Browser kiểm tra hai editor cùng mở: chỉ bên đầu lưu,
+bên sau giữ form và báo conflict; mở lại đọc bản mới. Đã kiểm tra mất phản hồi sau server
+commit bằng lỗi mạng mô phỏng: lần bấm lại giữ nguyên requestId, revision và audit;
+không tạo thay đổi trùng hoặc báo lưu thành công trước khi nhận xác nhận.
+
+Users/Questions trang 1 tạo snapshot mới; trang sau giữ snapshot server và cỡ 10/20/50.
+Kiểm tra còn bao phủ reload, dữ liệu/filter thật trên cả 5 trang, thu hồi claim, trạng thái
+đọc riêng theo admin, tìm kiếm và báo cáo CSV. Đã loại thông báo export “Demo users” và
+nội dung trợ giúp cũ rằng các API tiện ích chưa hoạt động.
+
+Các lượt trước có lỗi đọc RTDB Emulator tạm thời trong CRUD; UI hiển thị timeout và Retry.
+Fixture nay dùng chính nút Retry với thời gian chờ có giới hạn khi bảng lỗi đọc, không tự
+gửi mutation mới hoặc thay rate limit production. Ca conflict Content cũ cần chờ editor
+đọc revision xong rồi mới mô phỏng cập nhật từ xa. Lượt cuối toàn bộ 18/18 đạt. Một lượt
+unit chạy cùng Emulator bị timeout ca UI; chạy lại tuần tự trên mã cuối đạt 86/86.
+
+Không thay nguồn backend người dùng, Rules hoặc schema wire trong Bước 7. Không chạy lại
+bộ hồi quy BE1 193+10 hoặc toàn bộ admin 117 ca trong mốc này; kết quả đầy đủ gần nhất ở
+Bước 6. Functions lint/build, schema và browser tích hợp đã chạy lại qua launcher.
+
+Fixture và tiêm lỗi chỉ dùng project demo Emulator cô lập. Đường dẫn credential local đã
+kiểm tra tồn tại, không xuất khóa hoặc chạy worker với dữ liệu thật. Chưa deploy,
+smoke test Firebase production, gửi/nhận email thật hoặc nghiệm thu Android trên thiết bị.
+Bước 8 và nghiệm thu production vẫn là các mốc riêng.

@@ -130,9 +130,9 @@ export function Modal({
     const focusables = () =>
       Array.from(
         root.current?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]',
+          'button:enabled, input:enabled, select:enabled, textarea:enabled, [tabindex="0"]',
         ) || [],
-      )
+      ).filter((element) => !element.closest('fieldset[disabled]'))
     focusables()[0]?.focus()
     const keydown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !locked.current) {
@@ -140,8 +140,12 @@ export function Modal({
         close.current()
       }
       if (e.key === 'Tab') {
-        const elements = focusables(),
-          first = elements[0],
+        const elements = focusables()
+        if (!elements.length) {
+          e.preventDefault()
+          return
+        }
+        const first = elements[0],
           last = elements[elements.length - 1]
         if (e.shiftKey && document.activeElement === first) {
           e.preventDefault()
@@ -171,6 +175,7 @@ export function Modal({
         className={`modal ${wide ? 'modal-wide' : ''}`}
         role="dialog"
         aria-modal="true"
+        aria-busy={busy}
         aria-labelledby={titleId}
       >
         <div className="modal-heading">
@@ -182,7 +187,9 @@ export function Modal({
             <X size={20} />
           </button>
         </div>
-        {children}
+        <fieldset className="modal-content" disabled={busy}>
+          {children}
+        </fieldset>
       </div>
     </div>
   )

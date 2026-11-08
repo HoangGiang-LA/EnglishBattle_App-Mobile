@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Ban, CheckCircle2, Eye, Pencil, Plus, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useAdmin } from '../context'
 import { useDebounced, useResource } from '../hooks'
@@ -30,11 +30,26 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
     [action, setAction] = useState<{ user: UserRecord; status: UserStatus } | null>(null),
     [exporting, setExporting] = useState(false)
   const [inviting, setInviting] = useState(false)
-  const openDetail = async (user: UserRecord) => {
+  const opening = useRef(0)
+  useEffect(
+    () => () => {
+      opening.current++
+    },
+    [api, search, status, page, size],
+  )
+  const closeDetail = () => {
+    opening.current++
+    setDetail(null)
+  }
+  const openDetail = async (user: UserRecord, edit = false) => {
+    const generation = ++opening.current
     try {
-      setDetail(await api.user(user.id))
+      const current = await api.user(user.id)
+      if (generation !== opening.current) return
+      if (edit && current.status !== 'deleted' && !current.pendingOperation) setEditor(current)
+      else setDetail(current)
     } catch (error) {
-      toast(message(error), true)
+      if (generation === opening.current) toast(message(error), true)
     }
   }
   const q = useDebounced(search),
@@ -45,7 +60,7 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
     try {
       const r = await api.exportReport('users', query, range)
       downloadCsv(r.filename, r.columns, r.rows)
-      toast('Demo users exported with the current filters.')
+      toast('User report exported with the current filters.')
     } catch (e) {
       toast(message(e), true)
     } finally {
@@ -79,7 +94,13 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
         </button>
         <span className="toolbar-spacer" />
         <ExportButton busy={exporting} onClick={exportReport} />
-        <button className="btn btn-primary" onClick={() => setEditor('new')}>
+        <button
+          className="btn btn-primary"
+          onClick={() => {
+            opening.current++
+            setEditor('new')
+          }}
+        >
           <Plus size={16} />
           Add User
         </button>
@@ -176,7 +197,7 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
                               <button
                                 className="icon-btn"
                                 aria-label={`Edit ${u.name}`}
-                                onClick={() => setEditor(u)}
+                                onClick={() => void openDetail(u, true)}
                               >
                                 <Pencil size={15} />
                               </button>
@@ -229,11 +250,7 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
         />
       )}
       {detail && (
-        <Modal
-          title={detail.name}
-          subtitle={`${detail.code} · User details`}
-          onClose={() => setDetail(null)}
-        >
+        <Modal title={detail.name} subtitle={`${detail.code} · User details`} onClose={closeDetail}>
           <div className="modal-body">
             <div className="profile-preview">
               <Avatar name={detail.name} />
@@ -285,6 +302,7 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
                   className="btn"
                   disabled={inviting || ['pending', 'sending'].includes(detail.invitationStatus)}
                   onClick={async () => {
+                    const generation = opening.current
                     setInviting(true)
                     try {
                       const updated = await api.saveUser(
@@ -293,12 +311,13 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
                         detail.revision,
                         true,
                       )
+                      if (generation !== opening.current) return
                       setDetail(updated)
                       toast(
                         'Password setup email queued. Check the invitation status after refresh.',
                       )
                     } catch (error) {
-                      toast(message(error), true)
+                      if (generation === opening.current) toast(message(error), true)
                     } finally {
                       setInviting(false)
                     }
@@ -307,7 +326,7 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
                   {inviting ? 'Queuing…' : 'Resend invitation'}
                 </button>
               )}
-            <button className="btn" onClick={() => setDetail(null)}>
+            <button className="btn" onClick={closeDetail}>
               Close
             </button>
             {detail.status !== 'deleted' && !detail.pendingOperation && (
@@ -315,7 +334,7 @@ export function UsersPage({ initialSearch = '' }: { initialSearch?: string }) {
                 className="btn btn-primary"
                 onClick={() => {
                   setEditor(detail)
-                  setDetail(null)
+                  closeDetail()
                 }}
               >
                 Edit user

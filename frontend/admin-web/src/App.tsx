@@ -114,11 +114,12 @@ export default function App({
   const [serviceRevision, setServiceRevision] = useState(0)
   useEffect(() => {
     let closed = false
+    const controller = new AbortController()
     setLoaded(null)
     setServiceError('')
     if (!api && auth.session?.isAdmin) {
       const uid = auth.session.uid
-      void loadWorkspaceService(uid)
+      void loadWorkspaceService(uid, controller.signal)
         .then((value) => {
           if (!closed) {
             if (value.mode === 'firebase' && !window.location.hash) window.location.hash = '/users'
@@ -131,6 +132,8 @@ export default function App({
     }
     return () => {
       closed = true
+      controller.abort()
+      if (auth.session?.isAdmin) api?.dispose?.()
     }
   }, [api, auth.session?.uid, auth.session?.isAdmin, serviceRevision])
   const activeApi = api || (loaded?.uid === auth.session?.uid ? loaded?.api : undefined)
@@ -142,6 +145,8 @@ export default function App({
       const detail = (event as CustomEvent<{ uid: string; message: string }>).detail
       if (detail?.uid !== uid) return
       setAccessError(detail.message)
+      activeApi?.dispose?.()
+      auth.invalidate(detail.message)
       void auth.signOut()
     }
     window.addEventListener('admin:access-denied', denied)
@@ -670,30 +675,8 @@ function AdminWorkspace({
           </button>
         </div>
       )}
-      {panel === 'profile' && api.mode === 'firebase' && !profile.data && (
-        <Modal
-          title="Profile & workspace"
-          subtitle="Firebase administrator profile"
-          onClose={() => setPanel(null)}
-        >
-          <div className="modal-body">
-            {profile.error ? (
-              <ErrorState error={profile.error} retry={profile.reload} />
-            ) : (
-              <Loading label="Loading profile…" />
-            )}
-          </div>
-        </Modal>
-      )}
-      {panel === 'profile' && (api.mode === 'demo' || profile.data) && (
-        <ProfileDialog
-          api={api}
-          name={profile.data?.name || name}
-          email={profile.data?.email || ''}
-          revision={profile.data?.revision}
-          onClose={() => setPanel(null)}
-          onReset={() => setPanel('reset')}
-        />
+      {panel === 'profile' && (
+        <ProfilePanel api={api} onClose={() => setPanel(null)} onReset={() => setPanel('reset')} />
       )}
       {panel === 'audit' && <AuditDialog api={api} onClose={() => setPanel(null)} />}
       {panel === 'help' && api.mode === 'firebase' && (
@@ -720,7 +703,7 @@ function AdminWorkspace({
             </p>
             <p>
               Search, notifications, audit browsing and filtered CSV reports use authorized backend
-              APIs. They currently report unavailable.
+              APIs. Errors are shown directly, and saved changes remain available after reload.
             </p>
             <p>
               New accounts receive a Firebase password setup email. Check the invitation status
@@ -792,6 +775,45 @@ function AdminWorkspace({
   )
 }
 
+function ProfilePanel({
+  api,
+  onClose,
+  onReset,
+}: {
+  api: AdminService
+  onClose: () => void
+  onReset: () => void
+}) {
+  const profile = useResource(() => api.profile())
+  if (profile.loading || profile.error || !profile.data)
+    return (
+      <Modal
+        title="Profile & workspace"
+        subtitle={
+          api.mode === 'demo' ? 'Demo administrator profile' : 'Firebase administrator profile'
+        }
+        onClose={onClose}
+      >
+        <div className="modal-body">
+          {profile.error ? (
+            <ErrorState error={profile.error} retry={profile.reload} />
+          ) : (
+            <Loading label="Loading profile…" />
+          )}
+        </div>
+      </Modal>
+    )
+  return (
+    <ProfileDialog
+      api={api}
+      name={profile.data.name}
+      email={profile.data.email}
+      revision={profile.data.revision}
+      onClose={onClose}
+      onReset={onReset}
+    />
+  )
+}
 function ProfileDialog({
   api,
   name,

@@ -234,8 +234,8 @@ Xem `functions/ADMIN-CONTENT.md` và `functions/ADMIN-MONITORING.md`.
 ### 3.2. Adapter và lỗi API
 
 - [ ] Triển khai 13 callable mobile, giữ nguyên envelope và DTO đã có; kiểm tra schema của cả request và response.
-- [ ] Viết adapter Firebase callable thực thi `AdminService`, thay `MockAdminService` qua điểm tiêm service hiện có; mở workspace thật sau khi xác thực/quyền và API hợp lệ.
-- [ ] Cập nhật kiểu `mode` đang dành cho demo trong AdminService theo adapter thật; không thay bố cục Figma để nối service.
+- [x] Viết adapter Firebase callable đủ 21 API `AdminService`; mode thật mở sau xác thực/quyền, không fallback mock. Hoàn thiện local/Emulator ở Bước 7; xem `functions/ADMIN-INTEGRATION.md`.
+- [x] `AdminService.mode` hỗ trợ firebase/demo; mặc định Firebase, demo opt-in, giữ bố cục 5 trang và kiểm tra bundle Firebase không chứa mock/seed.
 - [ ] Client gửi Firebase Auth token qua SDK; server lấy UID/claim từ context đã xác thực. Không dùng UID client gửi làm căn cứ quyền.
 - [ ] Response có `serverNow` epoch ms; deadline và dateKey dùng giờ server. Không cho client tự quyết định thời gian tính thưởng.
 - [ ] Mutation dùng request ID ổn định qua retry/timeout; server dedupe theo UID + operation + ID, kiểm tra nội dung yêu cầu và trả lại kết quả đã commit.

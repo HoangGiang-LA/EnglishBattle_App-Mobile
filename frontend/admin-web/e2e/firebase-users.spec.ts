@@ -16,6 +16,15 @@ const password = process.env.ADMIN_QA_PASSWORD!
 const adminUid = process.env.ADMIN_QA_ADMIN_UID!
 const read = async (path: string) => (await db.ref(path).get()).val()
 
+async function readyUsers(page: Page) {
+  // A transient emulator read error must be recovered through the actual UI Retry control.
+  await expect(async () => {
+    const panel = page.locator('.data-panel')
+    const retry = panel.getByRole('button', { name: 'Try again', exact: true })
+    if (await retry.isVisible()) await retry.click()
+    await expect(panel.locator('tbody tr').first()).toBeVisible({ timeout: 2000 })
+  }).toPass({ timeout: 65000, intervals: [250, 1000] })
+}
 async function enter(page: Page) {
   await page.goto('/')
   await page.getByLabel('Email address').fill(adminEmail)
@@ -58,6 +67,7 @@ test('real UI creates, reloads, edits, bans, reopens and soft-deletes one Fireba
   await page.reload()
   await expect(page.getByRole('heading', { name: 'User Management' })).toBeVisible()
   await search(page, email)
+  await readyUsers(page)
   await page.getByRole('button', { name: `Edit ${name}`, exact: true }).click()
   dialog = page.getByRole('dialog')
   await dialog.getByLabel('Full name').fill(`${name} updated`)
@@ -73,6 +83,7 @@ test('real UI creates, reloads, edits, bans, reopens and soft-deletes one Fireba
     other.getByRole('button', { name: `Edit ${name} updated`, exact: true }),
   ).toBeVisible()
   await second.close()
+  await readyUsers(page)
   await page.getByRole('button', { name: `Edit ${name} updated`, exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Ban user', exact: true }).click()
   dialog = page.getByRole('dialog')
@@ -80,6 +91,7 @@ test('real UI creates, reloads, edits, bans, reopens and soft-deletes one Fireba
   await dialog.getByRole('button', { name: 'Ban user', exact: true }).click()
   await expect(dialog).not.toBeVisible()
   expect((await auth.getUser(created.uid)).disabled).toBe(true)
+  await readyUsers(page)
   await page.getByRole('button', { name: `Edit ${name} updated`, exact: true }).click()
   await page
     .getByRole('dialog')
@@ -139,4 +151,117 @@ test('permission loss while the workspace is open signs out instead of retaining
   await search(page, 'permission-check')
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
   await expect(page.getByRole('alert')).toContainText(/thu hồi|quản trị|khóa/)
+})
+
+test('a response lost after commit keeps the user form and retries the same operation exactly once', async ({
+  page,
+}) => {
+  const email = 'qa-learner-8@example.test'
+  const existing = await auth.getUserByEmail(email)
+  const original = existing.displayName!
+  const changed = original + ' retry verified'
+  const requests: string[] = [],
+    revisions: number[] = []
+  let operationId = '',
+    loseResponse = true
+  await enter(page)
+  await search(page, email)
+  await readyUsers(page)
+  await page.getByRole('button', { name: 'Edit ' + original, exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Full name').fill(changed)
+  await page.route('**/asia-southeast1/adminSaveUser', async (route) => {
+    const payload = route.request().postDataJSON().data
+    requests.push(payload.requestId)
+    const response = await route.fetch()
+    expect(response.status()).toBe(200)
+    const result = (await response.json()).result
+    operationId = result.operationId
+    revisions.push(result.user.revision)
+    if (loseResponse) {
+      loseResponse = false
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: { status: 'UNAVAILABLE', message: 'QA lost response after commit' },
+        }),
+      })
+    } else await route.fulfill({ response })
+  })
+  await dialog.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await expect(dialog.getByRole('alert')).toBeVisible()
+  await expect(dialog.getByLabel('Full name')).toHaveValue(changed)
+  await expect(page.getByText('User updated in Firebase.', { exact: true })).toHaveCount(0)
+  expect((await auth.getUser(existing.uid)).displayName).toBe(changed)
+  await dialog.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  expect(requests).toHaveLength(2)
+  expect(requests[0]).toBe(requests[1])
+  expect(revisions[0]).toBe(revisions[1])
+  expect((await read('adminOperations/' + operationId)).phase).toBe('succeeded')
+  expect((await read('adminAudit/' + operationId)).operationId).toBe(operationId)
+  await readyUsers(page)
+  await page.getByRole('button', { name: 'Edit ' + changed, exact: true }).click()
+  await page.getByRole('dialog').getByLabel('Full name').fill(original)
+  await page.getByRole('dialog').getByRole('button', { name: 'Save changes', exact: true }).click()
+  await expect(page.getByRole('dialog')).not.toBeVisible()
+})
+
+test('two browser editors show a version conflict and keep the second form without overwriting Firebase', async ({
+  page,
+  browser,
+}) => {
+  const email = 'qa-learner-7@example.test'
+  const original = (await auth.getUserByEmail(email)).displayName!
+  const second = await browser.newContext({ baseURL: 'http://127.0.0.1:15173' })
+  const other = await second.newPage()
+  try {
+    await enter(page)
+    await enter(other)
+    for (const view of [page, other]) {
+      await search(view, email)
+      await readyUsers(view)
+      await view.getByRole('button', { name: 'Edit ' + original, exact: true }).click()
+    }
+    await page
+      .getByRole('dialog')
+      .getByLabel('Full name')
+      .fill(original + ' first')
+    await other
+      .getByRole('dialog')
+      .getByLabel('Full name')
+      .fill(original + ' second')
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Save changes', exact: true })
+      .click()
+    await expect(page.getByRole('dialog')).not.toBeVisible()
+    await other
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Save changes', exact: true })
+      .click()
+    await expect(other.getByRole('dialog').getByRole('alert')).toContainText('người khác')
+    await expect(other.getByRole('dialog').getByLabel('Full name')).toHaveValue(
+      original + ' second',
+    )
+    expect((await auth.getUserByEmail(email)).displayName).toBe(original + ' first')
+    other.once('dialog', (dialog) => dialog.accept())
+    await other.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click()
+    // The list snapshot is older; opening Edit must read the latest record and revision.
+    await readyUsers(other)
+    await other.getByRole('button', { name: 'Edit ' + original, exact: true }).click()
+    await expect(other.getByRole('dialog').getByLabel('Full name')).toHaveValue(original + ' first')
+    await other.getByRole('dialog').getByRole('button', { name: 'Cancel', exact: true }).click()
+    await readyUsers(page)
+    await page.getByRole('button', { name: 'Edit ' + original + ' first', exact: true }).click()
+    await page.getByRole('dialog').getByLabel('Full name').fill(original)
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Save changes', exact: true })
+      .click()
+    await expect(page.getByRole('dialog')).not.toBeVisible()
+  } finally {
+    await second.close()
+  }
 })

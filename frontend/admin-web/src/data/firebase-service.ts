@@ -120,6 +120,8 @@ export class FirebaseAdminService implements AdminService {
   private readonly pending = new Map<string, Pending>()
   private readonly snapshots = new Map<string, string>()
   private readonly inFlightReads = new Map<string, Promise<Payload>>()
+  private readonly inFlightMutations = new Map<string, { key: string; promise: Promise<Payload> }>()
+  private active = true
   private generation = 0
   private notificationAsOf = 0
   private storageFailed = false
@@ -153,20 +155,43 @@ export class FirebaseAdminService implements AdminService {
       this.storageFailed = true
     }
   }
+  dispose() {
+    this.active = false
+    this.generation++
+    this.snapshots.clear()
+    this.inFlightReads.clear()
+  }
+  private assertActive() {
+    if (!this.active) throw new Error('Phiên làm việc đã thay đổi. Mở lại workspace để tiếp tục.')
+  }
+  private accessDenied(error: unknown) {
+    const phase = (error as { details?: { operationPhase?: string } })?.details?.operationPhase
+    // A stored terminal rejection belongs to the original actor session, not the current login.
+    if (this.active && !phase && ['unauthenticated', 'permission-denied'].includes(codeOf(error))) {
+      window.dispatchEvent(
+        new CustomEvent('admin:access-denied', {
+          detail: { uid: this.uid, message: describe(error).message },
+        }),
+      )
+    }
+  }
   private persist() {
     if (this.storage)
       this.storage.setItem(this.storageKey, JSON.stringify([...this.pending.values()]))
   }
   /** Recheck the exact stored intents before presenting new forms after reload. */
   async restorePending(): Promise<void> {
+    this.assertActive()
     for (const record of [...this.pending.values()].slice(0, 5)) {
       try {
         await this.transport(record.action, record.payload)
+        this.assertActive()
         if (record.action === 'adminExportReport') continue
         this.pending.delete(record.lane)
         this.snapshots.clear()
         this.generation++
       } catch (error) {
+        if (!this.active) throw error
         const phase = (error as { details?: { operationPhase?: string } })?.details?.operationPhase
         const review = phase === 'blocked' || reasonOf(error) === 'operation-result-expired'
         if (
@@ -178,11 +203,8 @@ export class FirebaseAdminService implements AdminService {
           this.pending.delete(record.lane)
         }
         if (!phase && ['unauthenticated', 'permission-denied'].includes(codeOf(error))) {
-          window.dispatchEvent(
-            new CustomEvent('admin:access-denied', {
-              detail: { uid: this.uid, message: describe(error).message },
-            }),
-          )
+          this.accessDenied(error)
+          throw describe(error)
         }
       }
       try {
@@ -193,6 +215,7 @@ export class FirebaseAdminService implements AdminService {
     }
   }
   private read(action: string, data: Payload): Promise<Payload> {
+    this.assertActive()
     const key = stable([this.generation, action, data])
     const current = this.inFlightReads.get(key)
     if (current) return current
@@ -202,24 +225,45 @@ export class FirebaseAdminService implements AdminService {
   }
   private async performRead(action: string, data: Payload): Promise<Payload> {
     try {
-      return await this.transport(action, data)
+      const response = await this.transport(action, data)
+      this.assertActive()
+      return response
     } catch (error) {
-      if (['unauthenticated', 'permission-denied'].includes(codeOf(error))) {
-        window.dispatchEvent(
-          new CustomEvent('admin:access-denied', {
-            detail: { uid: this.uid, message: describe(error).message },
-          }),
-        )
-      }
+      if (!this.active) throw error
+      this.accessDenied(error)
       throw describe(error)
     }
   }
-  private async mutate(
+  private mutate(
     action: string,
     data: Payload,
     target: string,
     complete?: (response: Payload) => Promise<Payload>,
   ): Promise<Payload> {
+    this.assertActive()
+    const lane = `${action}:${target}`,
+      key = stable([action, data])
+    const current = this.inFlightMutations.get(lane)
+    if (current) {
+      if (current.key !== key)
+        return Promise.reject(
+          new Error('Yêu cầu trước đang xử lý. Chờ xác minh kết quả trước khi gửi nội dung khác.'),
+        )
+      return current.promise
+    }
+    const promise = this.performMutation(action, data, target, complete).finally(() =>
+      this.inFlightMutations.delete(lane),
+    )
+    this.inFlightMutations.set(lane, { key, promise })
+    return promise
+  }
+  private async performMutation(
+    action: string,
+    data: Payload,
+    target: string,
+    complete?: (response: Payload) => Promise<Payload>,
+  ): Promise<Payload> {
+    this.assertActive()
     if (this.storageFailed)
       throw new Error(
         'Không đọc được mã yêu cầu đã lưu trong phiên. Cần khôi phục session storage trước khi gửi thay đổi.',
@@ -232,20 +276,29 @@ export class FirebaseAdminService implements AdminService {
         'Yêu cầu trước chưa xác định được kết quả. Giữ lại nội dung cũ và thử lại trước khi gửi thay đổi mới.',
       )
     }
+    const created = !record
     if (!record) {
-      record = { lane, key, action, payload: { ...data, requestId: crypto.randomUUID() } }
+      record = {
+        lane,
+        key,
+        action,
+        payload: JSON.parse(JSON.stringify({ ...data, requestId: crypto.randomUUID() })),
+      }
       this.pending.set(lane, record)
     }
     try {
       this.persist()
     } catch {
+      if (created) this.pending.delete(lane)
       throw new Error(
         'Không lưu được mã yêu cầu trong phiên. Chưa gửi thay đổi; kiểm tra session storage rồi thử lại.',
       )
     }
     try {
       let response = await this.transport(action, record.payload)
+      this.assertActive()
       if (complete) response = await complete(response)
+      this.assertActive()
       this.pending.delete(lane)
       try {
         this.persist()
@@ -257,6 +310,7 @@ export class FirebaseAdminService implements AdminService {
       window.dispatchEvent(new Event('admin:data'))
       return response
     } catch (error) {
+      if (!this.active) throw error
       const code = codeOf(error)
       const reason = reasonOf(error)
       const phase = (error as { details?: { operationPhase?: string } })?.details?.operationPhase
@@ -279,15 +333,13 @@ export class FirebaseAdminService implements AdminService {
           ].includes(code))
       ) {
         this.pending.delete(lane)
-        this.persist()
+        try {
+          this.persist()
+        } catch {
+          /* The confirmed rejection remains safe to replay. */
+        }
       }
-      if (!phase && ['unauthenticated', 'permission-denied'].includes(code)) {
-        window.dispatchEvent(
-          new CustomEvent('admin:access-denied', {
-            detail: { uid: this.uid, message: describe(error).message },
-          }),
-        )
-      }
+      this.accessDenied(error)
       throw describe(error)
     }
   }
@@ -336,7 +388,7 @@ export class FirebaseAdminService implements AdminService {
     const key = stable(filters)
     let snapshotId = this.snapshots.get(key)
     let first: (Page<UserRecord> & { snapshotId: string }) | undefined
-    if (!snapshotId) {
+    if (page === 1 || !snapshotId) {
       first = (await this.read('adminListUsers', { query: { ...filters, page: 1 } }))
         .page as typeof first
       if (generation !== this.generation) throw new Error('Danh sách đang được làm mới.')
@@ -437,7 +489,7 @@ export class FirebaseAdminService implements AdminService {
     const key = stable(['questions', filters])
     let snapshotId = this.snapshots.get(key)
     let first: (Page<QuestionRecord> & { snapshotId: string }) | undefined
-    if (!snapshotId) {
+    if (page === 1 || !snapshotId) {
       first = (await this.read('adminListQuestions', { query: { ...filters, page: 1 } }))
         .page as typeof first
       if (generation !== this.generation) throw new Error('Danh sách đang được làm mới.')
@@ -609,7 +661,10 @@ export class FirebaseAdminService implements AdminService {
   }
 }
 
-export async function loadWorkspaceService(uid: string): Promise<AdminService> {
+export async function loadWorkspaceService(
+  uid: string,
+  signal?: AbortSignal,
+): Promise<AdminService> {
   if (import.meta.env.VITE_ADMIN_DATA_MODE === 'demo')
     return (await import('./mock-service')).service
   const transport: AdminTransport = async (action, data) => {
@@ -623,6 +678,15 @@ export async function loadWorkspaceService(uid: string): Promise<AdminService> {
     return response.data as Payload
   }
   const service = new FirebaseAdminService(uid, transport, sessionStorage)
-  await service.restorePending()
-  return service
+  const abort = () => service.dispose()
+  signal?.addEventListener('abort', abort, { once: true })
+  if (signal?.aborted) abort()
+  try {
+    await service.restorePending()
+    return service
+  } catch (error) {
+    service.dispose()
+    signal?.removeEventListener('abort', abort)
+    throw error
+  }
 }
