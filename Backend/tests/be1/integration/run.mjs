@@ -40,8 +40,11 @@ if (process.env.ENGLISH_BATTLE_ACCEPTANCE_ANDROID === 'true') {
     '-e', 'class', classes.join(','), 'com.englishbattle.app.test/androidx.test.runner.AndroidJUnitRunner'], true);
   assert.match(regression, /OK \(\d+ tests?\)/, 'Android UI/ViewModel regression did not pass.');
   assert.doesNotMatch(regression, /FAILURES!!!|INSTRUMENTATION_FAILED|Process crashed/);
+  const {prepareAndroidAdminFixture} = await import('./admin-fixture.mjs');
+  const fixture = await prepareAndroidAdminFixture();
   const output = await run(adb, ['-s', serial, 'shell', 'am', 'instrument', '-w', '-r', '-e', 'acceptanceEmulators', 'true',
-    '-e', 'class', 'com.englishbattle.app.FirebaseIntegrationTest', 'com.englishbattle.app.test/androidx.test.runner.AndroidJUnitRunner'], true);
-  assert.match(output, /OK \(1 test\)/, 'Android SDK integration test did not pass.');
+    '-e', 'adminFixtureEmail', fixture.adminEmail, '-e', 'learnerFixtureEmail', fixture.learnerEmail,
+    '-e', 'adminFixturePassword', fixture.password, '-e', 'class', 'com.englishbattle.app.FirebaseIntegrationTest', 'com.englishbattle.app.test/androidx.test.runner.AndroidJUnitRunner'], true);
+  assert.match(output, /OK \(2 tests\)/, 'Android SDK integration test did not pass.');
   assert.doesNotMatch(output, /FAILURES!!!|INSTRUMENTATION_FAILED|Process crashed/);
 }

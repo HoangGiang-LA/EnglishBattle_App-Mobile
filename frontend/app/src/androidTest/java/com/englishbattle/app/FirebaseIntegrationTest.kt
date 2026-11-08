@@ -18,6 +18,78 @@ import java.util.UUID
 
 /** Opt-in SDK integration. Named apps point only at the isolated QA emulators. */
 class FirebaseIntegrationTest {
+    @Test(timeout = 240_000) fun adminAccountActionsAndQuestionVersionsReachTheAndroidSdkWithoutChangingTheDefaultAuth() = runBlocking {
+        val args = InstrumentationRegistry.getArguments()
+        assumeTrue("Use the isolated acceptance launcher.", args.getString("acceptanceEmulators") == "true")
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val originalUid = FirebaseAuth.getInstance().currentUser?.uid
+        val apps = mutableListOf<FirebaseApp>()
+        try {
+            fun client(label: String): Pair<FirebaseAuth, FirebaseFunctions> {
+                // Distinct fake keys keep the Auth SDK emulator cache isolated after named apps are deleted.
+                val options = FirebaseOptions.Builder().setProjectId("demo-englishbattle-finalization")
+                    .setApplicationId("1:1234567890:android:0123456789abcdef")
+                    .setApiKey("AIzaSyA" + UUID.randomUUID().toString().replace("-", ""))
+                    .setDatabaseUrl("https://englishbattleapp-8d764-default-rtdb.asia-southeast1.firebasedatabase.app").build()
+                val app = FirebaseApp.initializeApp(context, options, "admin-acceptance-" + label + "-" + UUID.randomUUID())
+                apps += app
+                return FirebaseAuth.getInstance(app).apply { useEmulator("10.0.2.2", 9199) } to
+                    FirebaseFunctions.getInstance(app, "asia-southeast1").apply { useEmulator("10.0.2.2", 5002) }
+            }
+            val (adminAuth, adminFunctions) = client("admin")
+            val (learnerAuth, learnerFunctions) = client("learner")
+            val password = args.getString("adminFixturePassword")!!
+            adminAuth.signInWithEmailAndPassword(args.getString("adminFixtureEmail")!!, password).await()
+            learnerAuth.signInWithEmailAndPassword(args.getString("learnerFixtureEmail")!!, password).await()
+            val uid = learnerAuth.currentUser!!.uid
+            val game = FirebaseGameRepository(ServerClock(), learnerFunctions, learnerAuth)
+            game.ensureProfile()
+            assertEquals(0, game.dashboard().coins)
+            val attempt = game.start(QuizMode.PRACTICE, "vocabulary_daily_life", UUID.randomUUID().toString())
+            val frozen = attempt.questions.first()
+            suspend fun adminCall(name: String, data: Map<String, Any?> = emptyMap()): Map<*, *> =
+                adminFunctions.getHttpsCallable(name).call(data).await().data as Map<*, *>
+            val question = adminCall("adminGetQuestion", mapOf("id" to frozen.id))["question"] as Map<*, *>
+            val fields = listOf("categoryId", "topicId", "lessonId", "prompt", "options", "correctOptionId",
+                "explanation", "passage", "audioUrl", "audioText", "difficulty", "status")
+            val input = fields.associateWith { question[it] }.toMutableMap()
+            input["prompt"] = frozen.prompt + " [admin SDK acceptance]"
+            val changed = adminCall("adminSaveQuestion", mapOf("requestId" to UUID.randomUUID().toString(),
+                "id" to frozen.id, "expectedVersion" to question["version"], "input" to input))["question"] as Map<*, *>
+            adminCall("adminArchiveQuestion", mapOf("requestId" to UUID.randomUUID().toString(), "id" to frozen.id,
+                "expectedVersion" to changed["version"]))
+            assertEquals(attempt.questions, game.resume(attempt.id).questions)
+            suspend fun status(value: String) {
+                val user = adminCall("adminGetUser", mapOf("id" to uid))["user"] as Map<*, *>
+                adminCall("adminSetUserStatus", mapOf("requestId" to UUID.randomUUID().toString(), "id" to uid,
+                    "status" to value, "reason" to "Isolated Android admin acceptance", "expectedRevision" to user["revision"]))
+            }
+            kotlinx.coroutines.delay(1200)
+            status("banned")
+            val banned = runCatching { game.dashboard() }.exceptionOrNull()
+            assertTrue(banned is com.google.firebase.functions.FirebaseFunctionsException &&
+                banned.code == com.google.firebase.functions.FirebaseFunctionsException.Code.PERMISSION_DENIED)
+            assertEquals(originalUid, FirebaseAuth.getInstance().currentUser?.uid)
+            status("active")
+            val revoked = runCatching { game.dashboard() }.exceptionOrNull()
+            assertTrue(revoked is com.google.firebase.functions.FirebaseFunctionsException &&
+                revoked.code == com.google.firebase.functions.FirebaseFunctionsException.Code.UNAUTHENTICATED)
+            assertNull(learnerAuth.currentUser)
+            assertEquals(originalUid, FirebaseAuth.getInstance().currentUser?.uid)
+            kotlinx.coroutines.delay(1200)
+            learnerAuth.signInWithEmailAndPassword(args.getString("learnerFixtureEmail")!!, password).await()
+            game.ensureProfile()
+            assertEquals(0, game.dashboard().coins)
+            assertEquals("abandoned", game.historyDetail(attempt.id).outcome)
+            status("deleted")
+            assertTrue(runCatching { game.ensureProfile() }.isFailure)
+            assertEquals(originalUid, FirebaseAuth.getInstance().currentUser?.uid)
+        } finally {
+            apps.forEach(FirebaseApp::delete)
+            assertEquals(originalUid, FirebaseAuth.getInstance().currentUser?.uid)
+        }
+    }
+
     @Test(timeout = 240_000) fun twoFirebaseSdkClientsCompleteLearningAndBattleWithoutTouchingTheLiveSession() = runBlocking {
         assumeTrue("Run npm run test:acceptance -- --android to start the isolated QA services.",
             InstrumentationRegistry.getArguments().getString("acceptanceEmulators") == "true")
@@ -30,7 +102,7 @@ class FirebaseIntegrationTest {
                 val options = FirebaseOptions.Builder()
                     .setProjectId("demo-englishbattle-finalization")
                     .setApplicationId("1:1234567890:android:0123456789abcdef")
-                    .setApiKey("AIzaSyAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+                    .setApiKey("AIzaSyA" + UUID.randomUUID().toString().replace("-", ""))
                     .setDatabaseUrl("https://englishbattleapp-8d764-default-rtdb.asia-southeast1.firebasedatabase.app")
                     .build()
                 val app = FirebaseApp.initializeApp(context, options, "acceptance-${UUID.randomUUID()}")
@@ -50,7 +122,7 @@ class FirebaseIntegrationTest {
                 assertEquals(uid, auth.currentUser!!.uid)
                 repository.updateName("SDK learner updated $index")
                 repository.resetPassword(email)
-                val game = FirebaseGameRepository(ServerClock(), functions)
+                val game = FirebaseGameRepository(ServerClock(), functions, auth)
                 game.ensureProfile()
                 game.ensureProfile()
                 val catalog = withTimeout(20_000) { FirebaseCatalogRepository(db).observe().first { it.categories.size == 4 && it.topics.isNotEmpty() } }

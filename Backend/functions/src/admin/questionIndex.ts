@@ -11,6 +11,11 @@ export const questionSearch = (value: string) => value.normalize("NFD").replace(
   .replace(/[đĐ]/g, "d").toLowerCase().trim();
 
 export async function syncAdminQuestionIndex(id: string): Promise<void> {
+  // A no-op backfill must not invalidate a concurrent list/search/export snapshot.
+  const candidate = await readAdminQuestion(id);
+  const indexed = (await adminDb.ref(`adminQuestionIndex/${id}`).get()).val();
+  const expected = {...candidate, searchKey: questionSearch(`${id} ${candidate.code} ${candidate.prompt}`)};
+  if (canonicalJson(indexed) === canonicalJson(expected)) return;
   const meta = adminDb.ref("adminQuestionIndexMeta");
   const ticket = randomUUID();
   await transactionWithRetry(meta, (c) => ({...c, version: (c?.version || 0) + 1,

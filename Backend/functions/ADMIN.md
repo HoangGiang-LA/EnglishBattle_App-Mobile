@@ -407,3 +407,23 @@ Fixture và tiêm lỗi chỉ dùng project demo Emulator cô lập. Đường d
 kiểm tra tồn tại, không xuất khóa hoặc chạy worker với dữ liệu thật. Chưa deploy,
 smoke test Firebase production, gửi/nhận email thật hoặc nghiệm thu Android trên thiết bị.
 Bước 8 và nghiệm thu production vẫn là các mốc riêng.
+
+## Biên bản Bước 8 — 08/11/2026
+
+Đã bổ sung launcher nghiệm thu tổng hợp, mở rộng guard matrix đủ 21 API và kiểm tra
+Android SDK cho khóa/mở/xóa user cùng snapshot question đang học. Đã sửa Auth được
+inject trong FirebaseGameRepository và bỏ ghi index question khi DTO không đổi.
+
+Đã chạy hồi quy admin 118/118, schema 8/8, browser Firebase 18/18, web unit 86/86,
+browser demo 20/20; backend người dùng, Android và bằng chứng từng lượt nằm trong
+[ADMIN-ACCEPTANCE.md](ADMIN-ACCEPTANCE.md). Có lệnh tái chạy
+npm run test:admin:acceptance trong Backend/functions.
+
+Smoke test local/Spark đã gọi đủ 21 API với Auth/RTDB thật, kiểm tra reload hai browser,
+email mời được chủ hộp thư xác nhận nhận và đặt mật khẩu, thông báo/audit và báo cáo.
+User QA được xóa mềm, nội dung QA archived và các version được giữ; tài khoản người học
+sẵn có vẫn active/4 xu. Ba index notifications thiếu đã được bổ sung theo xác nhận riêng,
+sau backup và đối chiếu Rules; không đổi quyền đọc/ghi.
+
+Đây là nghiệm thu local/Spark và Emulator. Chưa deploy production hoặc nghiệm thu Android
+trên thiết bị vật lý; phạm vi, kết quả, cách tái chạy và giới hạn được ghi tại biên bản.

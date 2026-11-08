@@ -346,6 +346,42 @@ test('question backfill covers more than 50 rows and returns exact stable filter
   await assert.rejects(call('adminListQuestions', actor, {query: {...query, snapshotId: first.snapshotId}}))
 })
 
+test('unchanged question backfill does not abort a concurrent scan, while source changes still refresh the index', async () => {
+  const actor = await account()
+  await readyIndex()
+  const version = await read('adminQuestionIndexMeta/version')
+  const original = db.ref; let injected = false
+  db.ref = function(path) {const ref = original.call(this, path)
+    if (path === 'adminQuestionIndex') {
+      const byKey = ref.orderByKey
+      ref.orderByKey = function() {const query = byKey.call(this), limit = query.limitToFirst
+        query.limitToFirst = function(n) {const bounded = limit.call(this, n), get = bounded.get
+          bounded.get = async function() {
+            const snap = await get.call(this)
+            if (!injected) {
+              injected = true
+              await original.call(db, 'adminQuestionIndexControl/nextRunAt').set(0)
+              await runQuestionIndexMaintenance()
+            }
+            return snap
+          }; return bounded
+        }; return query
+      }
+    }; return ref
+  }
+  try {
+    const page = (await call('adminListQuestions', actor, {query: {q: qid}})).page
+    assert.equal(page.total, 1)
+  } finally {db.ref = original}
+  assert.ok(injected)
+  assert.equal(await read('adminQuestionIndexMeta/version'), version)
+  const prompt = 'A source repair must refresh the existing question index.'
+  await db.ref(`questionVersions/${qid}/v1/prompt`).set(prompt)
+  await syncAdminQuestionIndex(qid)
+  assert.equal(await read(`adminQuestionIndex/${qid}/prompt`), prompt)
+  assert.ok(await read('adminQuestionIndexMeta/version') > version)
+})
+
 test('question search matches text and IDs, stale index writers rebuild and snapshots reject scans that change mid-read', async () => {
   const actor = await account()
   await readyIndex()

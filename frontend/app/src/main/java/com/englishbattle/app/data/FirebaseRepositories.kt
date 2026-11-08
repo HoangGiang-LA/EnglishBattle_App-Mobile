@@ -102,7 +102,7 @@ class ServerClock {
 class FirebaseGameRepository(private val clock: ServerClock,
     private val functions: FirebaseFunctions = FirebaseFunctions.getInstance("asia-southeast1").apply {
         if (BuildConfig.USE_FUNCTIONS_EMULATOR) useEmulator("10.0.2.2", 5001)
-    }) : GameRepository {
+    }, private val auth: FirebaseAuth = FirebaseAuth.getInstance()) : GameRepository {
     private val clientSessionId by lazy {
         val prefs = com.google.firebase.FirebaseApp.getInstance().applicationContext
             .getSharedPreferences("english_battle_device", android.content.Context.MODE_PRIVATE)
@@ -127,7 +127,7 @@ class FirebaseGameRepository(private val clock: ServerClock,
             callable.call(request).await().data
         }
         catch (e: FirebaseFunctionsException) {
-            if (e.code == FirebaseFunctionsException.Code.UNAUTHENTICATED) FirebaseAuth.getInstance().signOut()
+            if (e.code == FirebaseFunctionsException.Code.UNAUTHENTICATED) auth.signOut()
             throw e
         }
         val raw = response as? Map<*, *>

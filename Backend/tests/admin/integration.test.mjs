@@ -95,7 +95,7 @@ test('all 21 implemented callables reject anonymous/ordinary users before busine
 test('guards reject stale/string claims, disabled, banned, deleted, missing access and deleted Auth users', async () => {
   for (const claim of [false, 'true', 1]) {
     const user = await account(claim)
-    await assert.rejects(invoke('adminGetProfile', user), {code: 'permission-denied'})
+    for (const name of adminActions) await assert.rejects(invoke(name, user), {code: 'permission-denied'}, `${claim} ${name}`)
   }
   const stale = await account()
   await auth.setCustomUserClaims(stale.uid, {})
@@ -104,13 +104,13 @@ test('guards reject stale/string claims, disabled, banned, deleted, missing acce
     const user = await account()
     if (status === 'disabled') await auth.updateUser(user.uid, {disabled: true})
     else await db.ref(`accountAccess/${user.uid}`).set(status === 'missing' ? null : {status})
-    for (const name of ['adminGetProfile', 'adminSaveUser', 'adminExportReport']) {
+    for (const name of adminActions) {
       await assert.rejects(invoke(name, user), {code: 'permission-denied'}, `${status} ${name}`)
     }
   }
   const removed = await account()
   await auth.deleteUser(removed.uid)
-  await assert.rejects(invoke('adminGetProfile', removed), {code: 'unauthenticated'})
+  for (const name of adminActions) await assert.rejects(invoke(name, removed), {code: 'unauthenticated'}, name)
 })
 test('revocation is checked against live Auth; forged callable identity or absent bearer token cannot pass', async () => {
   const user = await account()

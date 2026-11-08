@@ -94,3 +94,13 @@ gồm timeout có/không lựa chọn, câu cuối, restart, midnight, lease, đ
 lỗi ở từng giai đoạn settlement và chạy worker bằng tiến trình thật. Bộ HTTP
 chạy Functions riêng ở cổng 5002. Thêm `-- --android` để chạy hai client bằng
 adapter SDK thật trên máy ảo; xem hướng dẫn tích hợp ở liên kết đầu tài liệu.
+
+## Nghiệm thu admin
+
+Chạy npm.cmd run test:admin:acceptance từ Backend/functions để kiểm thử tuần tự admin,
+server, hợp đồng, web và hồi quy backend người dùng trên Emulator cô lập. Thêm
+-- --android khi đã build APK và cấu hình Android Emulator. Log/result.json được lưu
+trong .firebase/admin-acceptance và không được commit.
+
+Xem [biên bản Bước 8](ADMIN-ACCEPTANCE.md) cho ma trận 21 API, cấu hình JDK/SDK, kết quả
+kiểm thử, phạm vi smoke test Firebase thật và các phần chưa nghiệm thu production.
