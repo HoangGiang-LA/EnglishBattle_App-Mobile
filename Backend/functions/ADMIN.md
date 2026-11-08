@@ -1,17 +1,18 @@
 # Backend admin — nền tảng API
 
-Cập nhật: 03/11/2026. Phạm vi: local/Spark, chưa deploy production.
+Cập nhật: 08/11/2026. Phạm vi: local/Spark, chưa deploy production.
 
 Bước 2 và bảo vệ admin cuối cùng: [hành vi, API, phục hồi và email](ADMIN-USERS.md).
 Bước 3: [danh mục, ngân hàng câu hỏi, phiên bản và TTS](ADMIN-CONTENT.md).
 Bước 4: [giám sát trận, hoạt động, dữ liệu riêng tư và worker](ADMIN-MONITORING.md).
 Bước 5: [Dashboard/Analytics, cohort, dữ liệu tổng hợp và rebuild](ADMIN-ANALYTICS.md).
+Bước 6: [tìm kiếm, hộp thư admin, audit và xuất CSV](ADMIN-WORKSPACE.md).
 
 ## Trạng thái
 
 - Export đủ 21 callable tại `asia-southeast1`, dùng chung guard, validator và rate limit.
-- Đã gắn 16 handler của Bước 2–5, gồm Overview cho Dashboard/Analytics. 5 handler thuộc Bước 6
-  tiếp tục trả `unimplemented`. Web mặc định dùng adapter Firebase cho các nhóm này; demo là opt-in.
+- Đã gắn đủ 21 handler Bước 2–6. Web dùng adapter Firebase cho cả 5 trang và các tiện ích
+  tìm kiếm/thông báo/audit/export; demo là opt-in.
 - HTTP `getAdminSession` tiếp tục xác nhận phiên đăng nhập; không thay thế guard callable.
 - Không thêm API cấp quyền, đổi rating/xu, sửa kết quả, daily/private, Storage hoặc FCM.
 
@@ -37,18 +38,18 @@ revision khi sửa, loại filter export và cutoff đọc thông báo.
 | ID / requestId | Một segment `[A-Za-z0-9_-]`, 1–128 ký tự; UID đích khác actor UID |
 | Phân trang | 10/20/50; page 1–1000; response có `snapshotId`, `expiresAt`, `nextCursor` |
 | Khoảng ngày | Ngày lịch hợp lệ, bao gồm ngày cuối, tối đa 366 ngày, `Asia/Ho_Chi_Minh` |
-| Search | 1–100 ký tự có nội dung, tối đa 20 kết quả |
-| Export | Tối đa 5.000 dòng và 2 MiB response; filter đầy đủ, không nhận page/cursor |
+| Search | 2–100 ký tự có nội dung, tối đa 20 kết quả |
+| Export | Tối đa 5.000 dòng, 1 MiB CSV và dưới 2 MiB JSON; tạo bằng requestId, nhận bằng reportId |
 | Rate limit | Theo UID, cửa sổ phút server: 120 read, 30 write, 5 export |
 | Sửa dữ liệu | `expectedRevision` cho profile/user/status/content; `expectedVersion` cho câu hỏi |
 | Đọc tất cả thông báo | Một trong `id` hoặc `throughAt`; giữ nguyên cutoff qua retry |
 
 Profile/user/catalog wire DTO thêm `revision`. Audit/thông báo trả `page`, thay danh sách
-không giới hạn. Export cần `requestId`. Adapter Profile/Users đã giữ requestId/payload
-khi retry; các nhóm còn lại sẽ nối theo cùng hợp đồng ở các bước sau.
+không giới hạn. Tạo export cần `requestId`; nhận lại kiểm tra quyền và hạn dùng riêng.
+Adapter giữ requestId/payload qua retry, gồm cả timeout khi nhận báo cáo đã tạo.
 
-Profile/Users và Questions đã có index, snapshot và phân trang thật ở Bước 2–3.
-Các nhóm trận, thống kê, audit và thông báo được hoàn thiện trong các bước sau.
+Profile/Users, Questions, trận, thống kê, audit và thông báo dùng index/snapshot server
+và các giới hạn hiện hành; xem tài liệu từng bước cho freshness và retention.
 Không triển khai offset bằng cách tải root RTDB về trình duyệt.
 
 ## Guard
@@ -305,3 +306,52 @@ Toàn bộ fixture và tiêm lỗi dùng project Emulator cô lập, không dùn
 Chưa deploy Rules/index/Functions, smoke test Firebase production hoặc kiểm chứng
 Android trên thiết bị. Launcher Spark dùng dữ liệu thật vẫn cần khóa Admin SDK hợp lệ.
 5 API tìm kiếm/thông báo/audit/export thuộc Bước 6; không fallback sang mock khi lỗi.
+
+## Biên bản Bước 6 — 08/11/2026
+
+Đã triển khai và nối adapter thật cho `adminSearch`, `adminListNotifications`,
+`adminMarkNotificationsRead`, `adminListAudit`, `adminExportReport`. Tổng hiện tại
+21/21 callable nghiệp vụ; 5 trang và tiện ích dùng chung dùng Firebase khi mode thật.
+Quy tắc, giới hạn và phục hồi tại [`ADMIN-WORKSPACE.md`](ADMIN-WORKSPACE.md).
+
+| Kiểm tra trên mã Bước 6 | Kết quả |
+|---|---|
+| Functions lint, TypeScript build, schema xuất khớp runtime | Đạt |
+| Schema và semantic validation đủ 21 API | 8/8 |
+| Hồi quy admin Bước 1–6 | 117/117, gồm 18 kiểm thử workspace mới |
+| Web unit/component/adapter | 67/67 |
+| Browser Firebase SDK qua HTTP/callable Emulator | 16/16, gồm 4 luồng Bước 6 mới |
+| Browser demo desktop/mobile | 20/20 |
+| Web production build, format các file web thay đổi, git diff check | Đạt |
+| Hồi quy backend người dùng | 193/193 |
+| HTTP callable người dùng và worker thật trên Emulator | 10/10 |
+| Server HTTP unit | 7/7 |
+| Hợp đồng frontend/mobile và kiểm tra export | 9/9 |
+
+Các ca mới kiểm tra hơn 50 event/audit/user, timestamp trùng, snapshot gắn actor/filter,
+tìm kiếm không lộ đáp án/token, thông báo riêng giữa hai admin, mark-all theo thời điểm
+publish và late event, rebuild giữ read state, lease hết hạn và retry mất acknowledgement.
+Đã tiêm lỗi sau artifact/read-state/audit, gọi trùng đồng thời, đổi quyền/privacy, hết hạn,
+vượt dòng/byte và nguồn bị treo: phản hồi đến muộn sau deadline không tạo artifact.
+
+Browser đã kiểm tra tìm kiếm dẫn đúng Users/Content/Battles, hai admin đọc độc lập và
+reload giữ trạng thái, audit lọc/phân trang, CSV đủ 11 kết quả lọc dù bảng chỉ hiện 10.
+Đã đối chiếu ảnh popover thông báo và modal audit. CSV có BOM và escape công thức;
+operation/checkpoint không giữ rows hoặc email của báo cáo, chỉ metadata.
+
+Lượt browser đầu gặp timeout/429 do nhiều lần đọc đồng thời và quota dùng chung giữa
+các ca; audit còn phụ thuộc số thao tác từ ca trước. Adapter nay dùng chung các lần đọc
+giống nhau đang chờ trong cùng UID/generation, không cache kết quả sau hoàn tất.
+Fixture chỉ reset rate limit trong project demo cô lập và ca audit tự tạo operation thật.
+Không tăng rate limit production. Lượt cuối toàn bộ 16/16 đạt.
+
+Tài liệu hợp đồng web đã cập nhật theo adapter và DTO thật, gồm Page cho audit/thông báo
+và quy trình tạo/nhận export. Lệnh dev:local trong README dùng đường dẫn mới
+`D:\Projects\EnglishBattle-full\frontend\admin-web`.
+
+Toàn bộ fixture và tiêm lỗi dùng project Emulator tách biệt. Chưa deploy
+Rules/index/Functions, smoke test Auth/RTDB Firebase thật, gửi/nhận email thật hoặc
+kiểm chứng Android trên thiết bị trong mốc này. Local/Spark dùng dữ liệu thật vẫn cần
+khóa Admin SDK hợp lệ và terminal/worker đang chạy. Báo cáo lớn hơn 5.000 dòng/1 MiB
+trả lỗi rõ; chưa có job export lớn. Daily/private, Storage/audio upload và FCM giữ
+phạm vi riêng.

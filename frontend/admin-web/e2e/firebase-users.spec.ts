@@ -30,6 +30,9 @@ async function search(page: Page, text: string) {
   await expect(page.getByText('Loading users…')).not.toBeVisible()
 }
 test.beforeEach(async () => {
+  // Functional cases are isolated from the quota consumed by preceding browser cases and warmup.
+  // This file has already asserted the dedicated demo project and emulator hosts.
+  await db.ref('adminRateLimits').remove()
   await auth.setCustomUserClaims(adminUid, { admin: true })
   await auth.updateUser(adminUid, { disabled: false })
 })
@@ -121,10 +124,11 @@ test('real profile saves survive reload; real mode has no demo reset and opens t
     .click()
   await expect(page.getByText('Total Users', { exact: true })).toBeVisible()
   await expect(page.getByRole('status')).toContainText('Data through')
-  await page.getByRole('button', { name: 'Notifications', exact: true }).click()
-  await expect(page.locator('.notifications-panel').getByRole('alert')).toContainText(
-    'Chức năng này chưa được triển khai',
-  )
+  await page.getByRole('button', { name: /^Notifications/ }).click()
+  await expect(
+    page.locator('.notifications-panel').getByText('New account registered').first(),
+  ).toBeVisible()
+  await expect(page.locator('.notifications-panel').getByRole('alert')).toHaveCount(0)
 })
 
 test('permission loss while the workspace is open signs out instead of retaining the admin screen', async ({

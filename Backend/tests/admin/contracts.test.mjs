@@ -8,6 +8,27 @@ const {adminActions, validateAdminRequest: input, validateAdminResponse: output,
 const {adminOperationId, canonicalJson} = require('./lib/admin/operations.js')
 const contract = JSON.parse(readFileSync(new URL('../../../frontend/contracts/admin.v1.json', import.meta.url), 'utf8'))
 
+test('workspace schemas enforce search bounds, actor-private read intents and two-phase complete reports', () => {
+  for (const q of ['x', '  ', 'x'.repeat(101)]) assert.throws(() => input('adminSearch', {q}), {code: 'invalid-argument'})
+  assert.doesNotThrow(() => input('adminExportReport', {reportId: 'report_1'}))
+  assert.throws(() => input('adminExportReport', {reportId: 'report_1', requestId: 'new'}), {code: 'invalid-argument'})
+  assert.throws(() => input('adminExportReport', {...requests.adminExportReport, reportId: 'report_1'}), {code: 'invalid-argument'})
+  assert.doesNotThrow(() => input('adminExportReport', {...requests.adminExportReport, kind: 'analytics',
+    query: {categoryId: 'reading', granularity: 'month', generation: 'generation_1'}}))
+  assert.throws(() => input('adminListNotifications', {uid: 'someone_else'}), {code: 'invalid-argument'})
+  assert.throws(() => input('adminListNotifications', {query: {q: 'ignored'}}), {code: 'invalid-argument'})
+  assert.throws(() => input('adminMarkNotificationsRead', {requestId: 'read_1', throughAt: Date.now() + 60000}),
+    {code: 'invalid-argument'})
+  assert.throws(() => input('adminMarkNotificationsRead', {requestId: 'read_1', id: 'notice', throughAt: 1}),
+    {code: 'invalid-argument'})
+  const {columns, rows, ...meta} = responses.adminExportReport.report
+  assert.doesNotThrow(() => output('adminExportReport', {...responses.adminExportReport, report: meta}))
+  assert.throws(() => output('adminExportReport', {...responses.adminExportReport, report: {...meta, rows}}), {code: 'internal'})
+  assert.throws(() => output('adminSearch', {serverNow: 1, items: [{id: 'x', label: 'x', detail: '', page: 'dashboard', query: 'x'}]}),
+    {code: 'internal'})
+  void columns
+})
+
 test('exactly 21 mapped callable request/response schemas accept representative DTOs', () => {
   assert.equal(adminActions.length, 21)
   assert.deepEqual([...adminActions].sort(), Object.values(contract.methods).filter(m => m.callable).map(m => m.callable).sort())

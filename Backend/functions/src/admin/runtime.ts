@@ -9,10 +9,12 @@ import {AdminOperations, OperationHandlers} from "./operations";
 import {ADMIN_POLICY as P} from "./policy";
 
 export type ReadHandlers = Partial<Record<AdminAction, (actor: AdminActor, data: Data) => Promise<Data>>>;
+export type ResponseHandlers = Partial<Record<AdminAction,
+  (actor: AdminActor, data: Data, response: Data) => Promise<Data>>>;
 
 /** Shared distributed rate budget across all instances, separately for exports. */
-export async function consumeAdminRate(db: Database, uid: string, action: AdminAction): Promise<void> {
-  const group = action === "adminExportReport" ? "export" : isOperation(action) ? "write" : "read";
+export async function consumeAdminRate(db: Database, uid: string, action: AdminAction, receive = false): Promise<void> {
+  const group = receive ? "read" : action === "adminExportReport" ? "export" : isOperation(action) ? "write" : "read";
   const limit = group === "export" ? P.exportsPerMinute : group === "write" ? P.writesPerMinute : P.readsPerMinute;
   const minute = Math.floor(Date.now() / 60000);
   const ticket = randomUUID();
@@ -29,7 +31,9 @@ export async function consumeAdminRate(db: Database, uid: string, action: AdminA
 }
 
 /** Only this dispatcher is exported as callables; handlers cannot bypass guards. */
-export function createAdminRuntime(auth: Auth, db: Database, reads: ReadHandlers = {}, writes: OperationHandlers = {}) {
+export function createAdminRuntime(
+  auth: Auth, db: Database, reads: ReadHandlers = {}, writes: OperationHandlers = {}, responses: ResponseHandlers = {},
+) {
   const operations = new AdminOperations(auth, db, writes);
   return {
     operations,
@@ -37,16 +41,22 @@ export function createAdminRuntime(auth: Auth, db: Database, reads: ReadHandlers
       try {
         const actor = await requireAdmin(request, auth, db);
         const data = validateAdminRequest(action, request.data);
-        await consumeAdminRate(db, actor.uid, action);
+        const receive = action === "adminExportReport" && Boolean(data.reportId);
+        await consumeAdminRate(db, actor.uid, action, receive);
         if (action === "adminSetUserStatus" && data.id === actor.uid && data.status !== "active") {
           throw new HttpsError("failed-precondition", "Administrators cannot block their own account.", {
             reason: "admin-self-protection",
           });
         }
-        if (isOperation(action)) return await operations.execute(action, actor, data);
-        const handler = reads[action];
-        if (!handler) throw new HttpsError("unimplemented", "This admin API is not implemented yet.");
-        const response = {...await handler(actor, data), serverNow: Date.now()};
+        let response: Data;
+        if (isOperation(action) && !receive) response = await operations.execute(action, actor, data);
+        else {
+          const handler = reads[action];
+          if (!handler) throw new HttpsError("unimplemented", "This admin API is not implemented yet.");
+          response = {...await handler(actor, data), serverNow: Date.now(),
+            ...(receive ? {operationId: data.reportId} : {})};
+        }
+        if (responses[action]) response = await responses[action]!(actor, data, response);
         validateAdminResponse(action, response);
         return response;
       } catch (error) {

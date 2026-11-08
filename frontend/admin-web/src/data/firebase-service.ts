@@ -10,6 +10,9 @@ import type {
   Page,
   Overview,
   DateRange,
+  AdminNotification,
+  AuditEntry,
+  CsvReport,
   QuestionInput,
   QuestionRecord,
   UserInput,
@@ -31,9 +34,6 @@ const stable = (value: unknown): string => {
       .join(',')}}`
   }
   return JSON.stringify(value) ?? 'null'
-}
-const unavailable = async (): Promise<never> => {
-  throw new Error('Chức năng này chưa được triển khai trong giai đoạn hiện tại.')
 }
 const reasonOf = (error: unknown) => (error as { details?: { reason?: string } })?.details?.reason
 const codeOf = (error: unknown) =>
@@ -62,6 +62,13 @@ function describe(error: unknown): Error {
     'monitoring-index-not-ready': 'Dữ liệu giám sát đang được tổng hợp. Thử lại sau ít giây.',
     'overview-not-ready': 'Thống kê đang được tổng hợp đầy đủ. Thử lại sau khi worker hoàn tất.',
     'overview-stale': 'Thống kê đã quá hạn cập nhật. Kiểm tra worker và thử lại.',
+    'search-not-ready': 'Các chỉ mục tìm kiếm đang được chuẩn bị. Thử lại sau ít giây.',
+    'notifications-not-ready': 'Thông báo đang được tổng hợp. Thử lại sau khi worker hoàn tất.',
+    'report-too-large': 'Báo cáo vượt giới hạn 5.000 dòng hoặc 1 MiB. Thu hẹp bộ lọc rồi xuất lại.',
+    'report-timeout': 'Báo cáo xử lý quá lâu. Thu hẹp bộ lọc rồi xuất lại.',
+    'report-expired': 'Báo cáo đã hết hạn hoặc không còn khả dụng. Xuất lại báo cáo.',
+    'report-privacy-changed':
+      'Trạng thái hiển thị tài khoản đã đổi. Tải lại dữ liệu và xuất báo cáo mới.',
     'overview-history-incomplete':
       'Lịch sử trận thiếu dữ liệu nguồn. Cần kiểm tra nguồn trước khi tính thống kê.',
     'overview-skill-history-incomplete':
@@ -107,12 +114,14 @@ function describe(error: unknown): Error {
   )
 }
 
-/** Supported groups use callable APIs; later groups explicitly report unavailable. */
+/** All business methods use authorized callable APIs. Pending reads are shared only within this account and revision. */
 export class FirebaseAdminService implements AdminService {
   readonly mode = 'firebase' as const
   private readonly pending = new Map<string, Pending>()
   private readonly snapshots = new Map<string, string>()
+  private readonly inFlightReads = new Map<string, Promise<Payload>>()
   private generation = 0
+  private notificationAsOf = 0
   private storageFailed = false
   private readonly storageKey: string
   constructor(
@@ -135,6 +144,8 @@ export class FirebaseAdminService implements AdminService {
             'adminSaveContent',
             'adminSaveQuestion',
             'adminArchiveQuestion',
+            'adminMarkNotificationsRead',
+            'adminExportReport',
           ].includes(record.action)
         )
           this.pending.set(record.lane, record)
@@ -151,6 +162,7 @@ export class FirebaseAdminService implements AdminService {
     for (const record of [...this.pending.values()].slice(0, 5)) {
       try {
         await this.transport(record.action, record.payload)
+        if (record.action === 'adminExportReport') continue
         this.pending.delete(record.lane)
         this.snapshots.clear()
         this.generation++
@@ -159,7 +171,9 @@ export class FirebaseAdminService implements AdminService {
         const review = phase === 'blocked' || reasonOf(error) === 'operation-result-expired'
         if (
           !review &&
-          (phase === 'failed' || ['invalid-argument', 'already-exists'].includes(codeOf(error)))
+          (phase === 'failed' ||
+            ['invalid-argument', 'already-exists'].includes(codeOf(error)) ||
+            ['report-expired', 'report-privacy-changed'].includes(reasonOf(error) || ''))
         ) {
           this.pending.delete(record.lane)
         }
@@ -178,7 +192,15 @@ export class FirebaseAdminService implements AdminService {
       }
     }
   }
-  private async read(action: string, data: Payload): Promise<Payload> {
+  private read(action: string, data: Payload): Promise<Payload> {
+    const key = stable([this.generation, action, data])
+    const current = this.inFlightReads.get(key)
+    if (current) return current
+    const pending = this.performRead(action, data).finally(() => this.inFlightReads.delete(key))
+    this.inFlightReads.set(key, pending)
+    return pending
+  }
+  private async performRead(action: string, data: Payload): Promise<Payload> {
     try {
       return await this.transport(action, data)
     } catch (error) {
@@ -192,7 +214,12 @@ export class FirebaseAdminService implements AdminService {
       throw describe(error)
     }
   }
-  private async mutate(action: string, data: Payload, target: string): Promise<Payload> {
+  private async mutate(
+    action: string,
+    data: Payload,
+    target: string,
+    complete?: (response: Payload) => Promise<Payload>,
+  ): Promise<Payload> {
     if (this.storageFailed)
       throw new Error(
         'Không đọc được mã yêu cầu đã lưu trong phiên. Cần khôi phục session storage trước khi gửi thay đổi.',
@@ -217,7 +244,8 @@ export class FirebaseAdminService implements AdminService {
       )
     }
     try {
-      const response = await this.transport(action, record.payload)
+      let response = await this.transport(action, record.payload)
+      if (complete) response = await complete(response)
       this.pending.delete(lane)
       try {
         this.persist()
@@ -242,7 +270,13 @@ export class FirebaseAdminService implements AdminService {
       if (
         !review &&
         (phase === 'failed' ||
-          ['invalid-argument', 'already-exists', 'not-found', 'failed-precondition'].includes(code))
+          [
+            'invalid-argument',
+            'already-exists',
+            'not-found',
+            'failed-precondition',
+            'unimplemented',
+          ].includes(code))
       ) {
         this.pending.delete(lane)
         this.persist()
@@ -467,11 +501,109 @@ export class FirebaseAdminService implements AdminService {
   battle = async (id: string) => (await this.read('adminGetBattle', { id })).detail as BattleDetail
   activities = (query: ListQuery) =>
     this.monitoringPage<Activity & { userName: string }>('activities', query)
-  search: AdminService['search'] = unavailable
-  notifications: AdminService['notifications'] = unavailable
-  readNotifications: AdminService['readNotifications'] = unavailable
-  audit: AdminService['audit'] = unavailable
-  exportReport: AdminService['exportReport'] = unavailable
+  search: AdminService['search'] = async (q) => {
+    const value = q.trim()
+    if (value.length < 2) return []
+    if (value.length > 100) throw new Error('Nhập tối đa 100 ký tự tìm kiếm.')
+    return (await this.read('adminSearch', { q: value })).items as Awaited<
+      ReturnType<AdminService['search']>
+    >
+  }
+  private async privatePage<T>(
+    kind: 'notifications' | 'audit',
+    query: ListQuery,
+  ): Promise<Page<T> & Payload> {
+    const generation = this.generation
+    const filters =
+      kind === 'notifications'
+        ? { ...(query.unreadOnly ? { unreadOnly: true } : {}) }
+        : {
+            ...(query.q?.trim() ? { q: query.q.trim() } : {}),
+            ...(query.actor ? { actor: query.actor } : {}),
+            ...(query.action ? { action: query.action } : {}),
+            ...(query.target ? { target: query.target } : {}),
+            ...(query.result ? { result: query.result } : {}),
+            ...(query.range ? { range: query.range } : {}),
+          }
+    const page = query.page || 1,
+      pageSize = query.pageSize || 10
+    const key = stable([kind, filters, pageSize])
+    const action = kind === 'audit' ? 'adminListAudit' : 'adminListNotifications'
+    let snapshotId = this.snapshots.get(key)
+    try {
+      let first: (Page<T> & Payload) | undefined
+      if (page === 1 || !snapshotId) {
+        first = (await this.read(action, { query: { ...filters, pageSize, page: 1 } }))
+          .page as Page<T> & Payload
+        if (generation !== this.generation) throw new Error('Danh sách đang được làm mới.')
+        snapshotId = first.snapshotId
+        this.snapshots.set(key, snapshotId!)
+      }
+      const result =
+        page === 1
+          ? first!
+          : ((
+              await this.read(action, {
+                query: {
+                  ...filters,
+                  pageSize,
+                  page,
+                  snapshotId,
+                },
+              })
+            ).page as Page<T> & Payload)
+      if (generation !== this.generation) throw new Error('Danh sách đang được làm mới.')
+      return result
+    } catch (error) {
+      this.snapshots.delete(key)
+      throw error
+    }
+  }
+  notifications = async (query: ListQuery = {}) => {
+    const result = await this.privatePage<AdminNotification>('notifications', query)
+    this.notificationAsOf = Number(result.asOf)
+    return { ...result, unreadTotal: Number(result.unreadTotal) }
+  }
+  readNotifications = async (id?: string) => {
+    if (!id && !this.notificationAsOf) await this.notifications()
+    const prior = this.pending.get('adminMarkNotificationsRead:all')
+    await this.mutate(
+      'adminMarkNotificationsRead',
+      id
+        ? { id }
+        : {
+            throughAt: prior?.payload.throughAt ?? this.notificationAsOf,
+          },
+      id || 'all',
+    )
+  }
+  audit = (query: ListQuery = {}) => this.privatePage<AuditEntry>('audit', query)
+  exportReport: AdminService['exportReport'] = async (kind, query, range) => {
+    const filters: Payload = {
+      ...(kind === 'analytics'
+        ? {
+            ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+            ...(query.granularity ? { granularity: query.granularity } : {}),
+            ...(query.generation ? { generation: query.generation } : {}),
+          }
+        : {
+            ...(query.q?.trim() ? { q: query.q.trim() } : {}),
+            ...(query.status ? { status: query.status } : {}),
+            ...(kind !== 'users' && query.categoryId ? { categoryId: query.categoryId } : {}),
+            ...(kind === 'questions' && query.difficulty ? { difficulty: query.difficulty } : {}),
+            ...(kind === 'battles' && query.mode ? { mode: query.mode } : {}),
+            ...(kind === 'battles' && query.range ? { range: query.range } : {}),
+          }),
+    }
+    const result = await this.mutate(
+      'adminExportReport',
+      { kind, query: filters, range },
+      kind,
+      (response) =>
+        this.transport('adminExportReport', { reportId: (response.report as Payload).id }),
+    )
+    return result.report as unknown as CsvReport
+  }
   reset: AdminService['reset'] = async () => {
     throw new Error('Không có chức năng reset dữ liệu thật.')
   }

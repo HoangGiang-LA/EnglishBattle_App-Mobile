@@ -2,7 +2,7 @@
 
 ## Web admin
 
-Web quản trị nằm riêng trong [`admin-web/`](admin-web/README.md), dùng React + TypeScript + Vite. Khi chưa deploy Functions, chạy `npm.cmd run dev:local` trong thư mục đó, mở `http://127.0.0.1:5173/`. Lệnh khởi động Functions Emulator, server xác nhận quyền và web. Đăng nhập dùng Firebase Auth thật; các trang nghiệp vụ quản trị hiện vẫn dùng dữ liệu mẫu.
+Web quản trị nằm riêng trong [`admin-web/`](admin-web/README.md), dùng React + TypeScript + Vite. Khi chưa deploy Functions, chạy `npm.cmd run dev:local` trong thư mục đó, mở `http://127.0.0.1:5173/`. Lệnh khởi động Functions Emulator, worker, server xác nhận quyền và web. Đăng nhập dùng Firebase Auth thật; đủ 21 callable phục vụ 5 trang cùng tìm kiếm, thông báo admin, audit và CSV. Demo là chế độ chọn riêng, không fallback khi API lỗi.
 
 ## Android người dùng
 
@@ -25,7 +25,7 @@ APK: `app/build/outputs/apk/debug/app-debug.apk`.
 1. Khởi động các dịch vụ local và giữ terminal mở:
 
    ```powershell
-   cd "D:\visual studio\EnglishBattle-full\frontend\admin-web"
+   cd "D:\Projects\EnglishBattle-full\frontend\admin-web"
    npm.cmd run dev:local
    ```
 

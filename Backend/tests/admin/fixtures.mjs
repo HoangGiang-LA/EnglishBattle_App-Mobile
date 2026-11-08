@@ -62,7 +62,9 @@ export const responses = {
     player1: {id: user.id, code: user.code, name: user.name, status: user.status},
     player2: {id: 'user_2', code: 'EB-user_2', name: 'Other learner', status: 'active'}}}),
   adminListActivities: envelope({page: paged([activity])}), adminSearch: envelope({items: []}),
-  adminListNotifications: envelope({page: paged([notification])}), adminMarkNotificationsRead: written({}),
+  adminListNotifications: envelope({page: {...paged([notification]), unreadTotal: 1, asOf: 2, projectionAsOf: 2}}),
+  adminMarkNotificationsRead: written({}),
   adminListAudit: envelope({page: paged([audit])}),
-  adminExportReport: written({report: {filename: 'users.csv', columns: ['id'], rows: [['user_1']], total: 1, expiresAt: 9999999999999}}),
+  adminExportReport: written({report: {id: 'report_1', asOf: 2, filename: 'users.csv', columns: ['id'],
+    rows: [['user_1']], total: 1, expiresAt: 9999999999999}}),
 }

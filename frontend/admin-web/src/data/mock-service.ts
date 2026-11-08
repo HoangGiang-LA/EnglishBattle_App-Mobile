@@ -445,14 +445,37 @@ export class MockAdminService implements AdminService {
               })),
           ],
     )
-  notifications = () => this.read((s) => s.notifications)
+  notifications = (query: ListQuery = {}) =>
+    this.read((s) => ({
+      ...paged(
+        s.notifications.filter((n) => !query.unreadOnly || !n.read),
+        query,
+      ),
+      unreadTotal: s.notifications.filter((n) => !n.read).length,
+      asOf: Date.now(),
+    }))
   readNotifications = (id?: string) =>
     this.mutate('notification.read', id || 'all', (s) => {
       s.notifications.forEach((n) => {
         if (!id || id === n.id) n.read = true
       })
     })
-  audit = () => this.read((s) => s.audit)
+  audit = (query: ListQuery = {}) =>
+    this.read((s) => {
+      const bounds = query.range ? rangeBounds(query.range) : null
+      return paged(
+        s.audit.filter(
+          (a) =>
+            (!query.q || match(`${a.actor} ${a.action} ${a.target} ${a.reason}`, query.q)) &&
+            (!query.actor || a.actor === query.actor) &&
+            (!query.action || a.action === query.action) &&
+            (!query.result || a.result === query.result) &&
+            (!query.target || a.target.includes(query.target)) &&
+            (!bounds || (a.at >= bounds.start && a.at < bounds.end)),
+        ),
+        query,
+      )
+    })
   exportReport = (
     kind: 'users' | 'questions' | 'battles' | 'analytics',
     query: ListQuery,

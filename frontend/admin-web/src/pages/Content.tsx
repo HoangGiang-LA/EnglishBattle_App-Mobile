@@ -63,7 +63,7 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
     try {
       const report = await api.exportReport('questions', query, range)
       downloadCsv(report.filename, report.columns, report.rows)
-      toast('Demo question report exported with the current filters.')
+      toast('Question report exported with the current filters.')
     } catch (e) {
       toast(message(e), true)
     } finally {

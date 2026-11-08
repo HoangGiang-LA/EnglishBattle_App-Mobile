@@ -171,7 +171,11 @@ export function Dashboard() {
   const exportReport = async () => {
     setExporting(true)
     try {
-      const report = await api.exportReport('analytics', {}, range)
+      const report = await api.exportReport(
+        'analytics',
+        { granularity: granularity, generation: overview.data?.generation },
+        range,
+      )
       downloadCsv(report.filename, report.columns, report.rows)
       toast('Dashboard report downloaded.')
     } catch (e) {
@@ -346,7 +350,11 @@ export function Analytics() {
   const exportReport = async () => {
     setExporting(true)
     try {
-      const r = await api.exportReport('analytics', { categoryId: category }, range)
+      const r = await api.exportReport(
+        'analytics',
+        { categoryId: category, granularity: 'month', generation: data.data?.generation },
+        range,
+      )
       downloadCsv(r.filename, r.columns, r.rows)
       toast('Analytics report downloaded.')
     } catch (e) {

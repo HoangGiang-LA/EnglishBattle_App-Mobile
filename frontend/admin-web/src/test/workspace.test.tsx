@@ -129,7 +129,7 @@ describe('Admin workspace frontend', () => {
     await user.click(confirm)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect((await api.user('demo-user-1')).status).toBe('deleted')
-    expect((await api.audit())[0].action).toBe('user.deleted')
+    expect((await api.audit()).items[0].action).toBe('user.deleted')
   })
   it('creates a published question with a correct answer, previews it and archives it', async () => {
     const { api, user } = await demo()
@@ -216,7 +216,7 @@ describe('Admin workspace frontend', () => {
     await screen.findByRole('heading', { name: 'Battle & Moderation' })
     await user.click(screen.getByRole('button', { name: 'Notifications, 2 unread' }))
     await user.click(screen.getByRole('button', { name: 'Mark all read' }))
-    await waitFor(async () => expect((await api.notifications()).every((n) => n.read)).toBe(true))
+    await waitFor(async () => expect((await api.notifications()).unreadTotal).toBe(0))
     await user.click(screen.getByRole('button', { name: 'Preview details' }))
     await user.click(screen.getByRole('button', { name: 'Preview loading error' }))
     await screen.findByRole('heading', { name: 'We couldn’t load this data' })

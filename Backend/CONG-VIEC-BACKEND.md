@@ -124,11 +124,12 @@ Mọi response có `serverNow` theo epoch milliseconds. Kiểu trường, bắt 
 
 ## 2. Backend phía admin
 
-Mốc 03/11/2026: nền tảng API và Bước 2–5 đã triển khai, kiểm thử local/Emulator;
+Mốc 07/11/2026: nền tảng API và Bước 2–6 đã triển khai ở local/Emulator;
 chưa deploy production hoặc kiểm chứng email/Android thiết bị thật. Chi tiết và biên bản:
 [`functions/ADMIN.md`](functions/ADMIN.md), [`functions/ADMIN-USERS.md`](functions/ADMIN-USERS.md),
 [`functions/ADMIN-CONTENT.md`](functions/ADMIN-CONTENT.md), [`functions/ADMIN-MONITORING.md`](functions/ADMIN-MONITORING.md).
 Dashboard/Analytics và quy tắc số liệu: [`functions/ADMIN-ANALYTICS.md`](functions/ADMIN-ANALYTICS.md).
+Tìm kiếm/thông báo/audit/export: [`functions/ADMIN-WORKSPACE.md`](functions/ADMIN-WORKSPACE.md).
 Các dấu hoàn thành dưới đây chỉ áp dụng cho mốc local/Emulator này.
 
 ### 2.1. Xác thực và phân quyền
@@ -148,7 +149,7 @@ Các dấu hoàn thành dưới đây chỉ áp dụng cho mốc local/Emulator 
 - [x] Kỳ trước cùng số ngày lịch; mẫu số 0 hoặc dữ liệu tỷ lệ không đủ trả null/N/A/lỗi rõ.
 - [x] Accuracy tổng đúng/tổng slot đã phân xử trong các phiên terminal của kỳ, gồm abandoned có câu đã trả lời.
 - [x] Backfill phân trang, checkpoint/lease, receipt chống lặp; generation riêng và publish pointer nguyên tử, giữ bản cũ khi lỗi; không tải source root về web.
-- [ ] Xuất báo cáo có cùng bộ lọc với trang; chặn CSV formula injection và giới hạn kích thước/thời gian xử lý. Báo cáo lớn dùng job nếu cần.
+- [x] Xuất toàn bộ kết quả theo bộ lọc; BOM UTF-8 và chống CSV formula injection. Giới hạn 5.000 dòng/1 MiB/20 giây; báo cáo lớn báo lỗi rõ, chưa có job lớn.
 
 ### 2.3. Quản lý người dùng
 
@@ -177,9 +178,9 @@ Các dấu hoàn thành dưới đây chỉ áp dụng cho mốc local/Emulator 
 - [x] Không lộ lựa chọn, đáp án bí mật, session ID hoặc token; điểm live chỉ tính vòng đã chốt.
 - [x] Hoạt động đăng ký/học/thi đấu có ID ổn định, worker checkpoint/lease, phân trang snapshot và asOf; chạy lại không tạo dòng trùng.
 - [x] Phạm vi hiện tại là xem/giám sát; không có API đảo kết quả/hủy trận. Reads không chạy settlement hoặc sửa nguồn.
-- [ ] Tìm kiếm toàn hệ thống có giới hạn, chỉ trả nhóm/đường dẫn cho phép; index chứa email chỉ admin được truy cập.
-- [ ] Hộp thư admin và trạng thái đọc gắn đúng UID admin.
-- [ ] Audit do backend append: actor UID lấy từ token, target, hành động, thời gian server, kết quả và thay đổi cần thiết; không ghi mật khẩu/token.
+- [x] Tìm kiếm toàn hệ thống có giới hạn, chỉ trả nhóm/đường dẫn cho phép; index chứa email chỉ qua API admin.
+- [x] Hộp thư admin và trạng thái đọc gắn đúng UID admin; event có ID ổn định, mark-all giữ cutoff, phân trang và retention.
+- [x] Audit do backend ghi theo operation ID: actor, target, thời gian server, kết quả và lý do đã lọc; phân trang/lọc, không ghi mật khẩu/token.
 - [x] Không cung cấp `reset()` dữ liệu production; đó là phương thức chỉ dành cho demo.
 
 ### 2.6. Danh sách 21 callable admin
@@ -187,8 +188,8 @@ Các dấu hoàn thành dưới đây chỉ áp dụng cho mốc local/Emulator 
 Tên và request cụ thể lấy từ `admin.v1.json` và `admin.schemas.v1.json`; kiểu UI lấy từ
 `domain.ts`. Cả 21 callable đã có guard/schema; 6 API Profile/Users có nghiệp vụ và
 adapter thật; Bước 3 bổ sung 6 API Catalog/Questions, Bước 4 bổ sung 3 API Battles/Activities.
-Overview của Bước 5 bổ sung Dashboard/Analytics. Tổng 16/21 có nghiệp vụ;
-5 API Bước 6 trả `unimplemented`. Mutation có thêm `operationId`.
+Overview của Bước 5 bổ sung Dashboard/Analytics. Bước 6 bổ sung tìm kiếm/thông báo/audit/export;
+tổng 21/21 có nghiệp vụ. Mutation/tạo export có operationId; nhận export dùng reportId và kiểm tra quyền riêng.
 Xem `functions/ADMIN-CONTENT.md` và `functions/ADMIN-MONITORING.md`.
 
 | Callable | Phương thức AdminService | Payload ngoài `serverNow` |

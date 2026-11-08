@@ -125,6 +125,9 @@ export interface AuditEntry {
   target: string
   at: number
   reason: string
+  operationId?: string
+  result?: 'succeeded' | 'failed' | 'blocked'
+  errorCode?: string
 }
 export interface DemoState {
   schemaVersion: 1
@@ -154,6 +157,13 @@ export interface ListQuery {
   range?: DateRange
   page?: number
   pageSize?: number
+  actor?: string
+  action?: string
+  target?: string
+  result?: string
+  unreadOnly?: boolean
+  granularity?: 'day' | 'week' | 'month'
+  generation?: string
 }
 export interface Page<T> {
   items: T[]
@@ -163,6 +173,7 @@ export interface Page<T> {
   asOf?: number
   lagMs?: number
   ready?: boolean
+  snapshotId?: string
 }
 export interface Overview {
   totalUsers: number
@@ -229,6 +240,10 @@ export interface CsvReport {
   filename: string
   columns: string[]
   rows: (string | number)[][]
+  id?: string
+  total?: number
+  asOf?: number
+  expiresAt?: number
 }
 export type QuestionInput = Omit<
   QuestionRecord,
@@ -284,9 +299,9 @@ export interface AdminService {
   search(
     q: string,
   ): Promise<{ id: string; label: string; detail: string; page: PageId; query: string }[]>
-  notifications(): Promise<AdminNotification[]>
+  notifications(query?: ListQuery): Promise<Page<AdminNotification> & { unreadTotal: number }>
   readNotifications(id?: string): Promise<void>
-  audit(): Promise<AuditEntry[]>
+  audit(query?: ListQuery): Promise<Page<AuditEntry>>
   exportReport(
     kind: 'users' | 'questions' | 'battles' | 'analytics',
     query: ListQuery,

@@ -5,7 +5,7 @@
 - `admin.v1.json`: ánh xạ 21 callable admin và một `reset` chỉ dùng demo, giới hạn và mã lỗi. `admin.schemas.v1.json` chứa JSON Schema request/response của đủ 21 API; được xuất từ `Backend/functions/src/admin/contracts.ts`. Wire DTO đã bổ sung revision, operation ID, snapshot và phân trang audit/thông báo. Adapter đã nối các nhóm trong `implementedCallables`; phần còn lại nối theo các bước tiếp theo.
 - `database.rules.proposed.json`: Rules client để kiểm thử bằng emulator, **chưa deploy**.
 
-Giữ nguyên UI theo Figma. Từ 03/11/2026, 16 callable có nghiệp vụ thật và adapter web Firebase, gồm Overview cho Dashboard/Analytics. 5 callable Bước 6 đã được export qua guard/schema/rate limit chung và trả `unimplemented`; web không fallback sang mock. Xem `Backend/functions/ADMIN-USERS.md`, `ADMIN-CONTENT.md`, `ADMIN-MONITORING.md`, `ADMIN-ANALYTICS.md` cho quy tắc, phục hồi và QA.
+Giữ nguyên 5 trang theo Figma. Từ 07/11/2026, đủ 21 callable có nghiệp vụ thật và adapter web Firebase, gồm tìm kiếm, thông báo theo UID, audit phân trang và CSV. Export dùng requestId để tạo metadata, reportId để nhận dữ liệu qua cùng callable; quyền/hạn dùng được kiểm tra ở cả hai nhánh. Xem `Backend/functions/ADMIN-USERS.md`, `ADMIN-CONTENT.md`, `ADMIN-MONITORING.md`, `ADMIN-ANALYTICS.md`, `ADMIN-WORKSPACE.md` cho quy tắc, phục hồi và QA.
 
 ## Quy tắc đã xác nhận ngày 25/10/2026
 

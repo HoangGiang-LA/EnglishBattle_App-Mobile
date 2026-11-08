@@ -5,6 +5,7 @@ import {HttpsError} from "firebase-functions/v2/https";
 import {transactionWithRetry} from "../be1/databaseTransaction";
 import {acquireMembership, protectLastAdmin, releaseMembership, userLockKey} from "./membership";
 import {ADMIN_POLICY as P} from "./policy";
+import {writeAdminAudit} from "./audit";
 
 export interface RoleChange {action: "grant" | "revoke"; uid: string; requestId: string; reason: string}
 interface RoleOperation extends RoleChange {
@@ -14,7 +15,7 @@ interface RoleOperation extends RoleChange {
 }
 
 async function finishRole(db: Database, op: RoleOperation): Promise<void> {
-  await transactionWithRetry(db.ref(`adminAudit/${op.id}`), (c) => c || {
+  await writeAdminAudit(db, op.id, {
     id: op.id, operationId: op.id, actor: "server_operator", actorType: "service",
     action: `server${op.action === "grant" ? "Grant" : "Revoke"}Admin`, target: `user/${op.uid}`,
     reason: /password|token|private.?key|bearer/i.test(op.reason) ? "[redacted sensitive reason]" : op.reason,

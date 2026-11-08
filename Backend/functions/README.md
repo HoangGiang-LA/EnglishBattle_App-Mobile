@@ -3,6 +3,7 @@
 Nền tảng backend admin Bước 1: [guard, hợp đồng, operation và QA](ADMIN.md).
 Quản lý danh mục và câu hỏi Bước 3: [phiên bản, quan hệ, TTS và phân trang](ADMIN-CONTENT.md).
 Giám sát Bước 4: [trận thật, timeline, hoạt động và worker](ADMIN-MONITORING.md).
+Tiện ích Bước 6: [tìm kiếm, thông báo admin, audit và CSV](ADMIN-WORKSPACE.md).
 Dashboard/Analytics Bước 5: [KPI, cohort, mixed-skill và generation tổng hợp](ADMIN-ANALYTICS.md).
 
 Thi đấu nhanh, kết nối lại và kết quả bất biến: [luật và vận hành](BATTLE.md).

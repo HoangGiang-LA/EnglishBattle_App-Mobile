@@ -37,6 +37,190 @@ const page = (items: UserRecord[], snapshotId = 'snapshot_1') => ({
 })
 
 describe('Firebase admin adapter', () => {
+  it('shares identical pending reads but makes a fresh authorized request after settlement', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const transport = vi.fn<AdminTransport>().mockImplementation(async () => {
+      await gate
+      return { profile }
+    })
+    const service = new FirebaseAdminService('admin_1', transport)
+    const first = service.profile(),
+      second = service.profile()
+    expect(transport).toHaveBeenCalledTimes(1)
+    release()
+    expect(await Promise.all([first, second])).toEqual([profile, profile])
+    await service.profile()
+    expect(transport).toHaveBeenCalledTimes(2)
+  })
+  it('never shares a pending read across accounts or across a committed mutation', async () => {
+    let release!: () => void,
+      reads = 0
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const transport = vi.fn<AdminTransport>().mockImplementation(async (action) => {
+      if (action === 'adminGetProfile' && ++reads === 1) await gate
+      return { profile }
+    })
+    const first = new FirebaseAdminService('admin_1', transport)
+    const second = new FirebaseAdminService('admin_2', transport)
+    const old = first.profile()
+    await second.profile()
+    expect(reads).toBe(2)
+    await first.saveProfile('Updated', 3)
+    await first.profile()
+    expect(reads).toBe(3)
+    release()
+    await old
+  })
+  it('searches only nonempty bounded queries through the authorized callable', async () => {
+    const transport = vi
+      .fn<AdminTransport>()
+      .mockResolvedValue({ items: [{ id: 'search_1', page: 'users', query: 'uid_1' }] })
+    const service = new FirebaseAdminService('admin_1', transport)
+    expect(await service.search(' ')).toEqual([])
+    expect(await service.search('x')).toEqual([])
+    expect(transport).not.toHaveBeenCalled()
+    expect((await service.search('  Nguyen  '))[0].query).toBe('uid_1')
+    expect(transport.mock.calls[0]).toEqual(['adminSearch', { q: 'Nguyen' }])
+    await expect(service.search('x'.repeat(101))).rejects.toThrow(/100/)
+  })
+  it('paginates notifications with a bound snapshot and uses the whole-inbox cutoff for mark-all', async () => {
+    const transport = vi.fn<AdminTransport>().mockImplementation(async (action) =>
+      action === 'adminListNotifications'
+        ? {
+            page: { ...page([]), asOf: 100, unreadTotal: 30 },
+          }
+        : {},
+    )
+    const service = new FirebaseAdminService('admin_1', transport)
+    expect((await service.notifications()).unreadTotal).toBe(30)
+    await service.notifications({ page: 2 })
+    expect(transport.mock.calls[1]).toEqual([
+      'adminListNotifications',
+      {
+        query: {
+          page: 2,
+          pageSize: 10,
+          snapshotId: 'snapshot_1',
+        },
+      },
+    ])
+    await service.readNotifications()
+    expect(transport.mock.calls[2][0]).toBe('adminMarkNotificationsRead')
+    expect(transport.mock.calls[2][1]).toMatchObject({
+      throughAt: 100,
+      requestId: expect.any(String),
+    })
+    await service.notifications({ unreadOnly: true, pageSize: 20 })
+    expect(transport.mock.calls[3]).toEqual([
+      'adminListNotifications',
+      {
+        query: {
+          unreadOnly: true,
+          pageSize: 20,
+          page: 1,
+        },
+      },
+    ])
+  })
+  it('retains the same read-all cutoff and request ID when notifications refresh after a timeout', async () => {
+    let asOf = 100,
+      failedOnce = false
+    const transport = vi.fn<AdminTransport>().mockImplementation(async (action) => {
+      if (action === 'adminListNotifications')
+        return { page: { ...page([]), asOf, unreadTotal: 1 } }
+      if (!failedOnce) {
+        failedOnce = true
+        throw failed('deadline-exceeded')
+      }
+      return {}
+    })
+    const service = new FirebaseAdminService('admin_1', transport)
+    await service.notifications()
+    await expect(service.readNotifications()).rejects.toThrow(/thời gian chờ/)
+    asOf = 200
+    await service.notifications()
+    await service.readNotifications()
+    expect(transport.mock.calls[3]).toEqual(transport.mock.calls[1])
+  })
+  it('paginates audit with exact filters and never sends offsets or downloads all rows', async () => {
+    const transport = vi.fn<AdminTransport>().mockResolvedValue({ page: page([]) })
+    const service = new FirebaseAdminService('admin_1', transport)
+    await service.audit({ q: '  case  ', result: 'failed', actor: 'uid_1', pageSize: 20 })
+    await service.audit({ q: 'case', result: 'failed', actor: 'uid_1', pageSize: 20, page: 3 })
+    expect(transport.mock.calls[1]).toEqual([
+      'adminListAudit',
+      {
+        query: {
+          q: 'case',
+          result: 'failed',
+          actor: 'uid_1',
+          pageSize: 20,
+          page: 3,
+          snapshotId: 'snapshot_1',
+        },
+      },
+    ])
+  })
+  it('exports all matching rows by creating then receiving a report, with pagination removed', async () => {
+    const report = {
+      id: 'report_1',
+      filename: 'users.csv',
+      columns: ['Name'],
+      rows: [['Learner']],
+      total: 1,
+    }
+    const transport = vi.fn<AdminTransport>().mockImplementation(async (_action, data) => ({
+      report: data.reportId ? report : { id: report.id, total: report.total },
+    }))
+    const service = new FirebaseAdminService('admin_1', transport)
+    const range = { from: '2026-11-01', to: '2026-11-03' }
+    expect(
+      await service.exportReport(
+        'users',
+        { q: 'Learner', status: 'active', page: 4, pageSize: 10 },
+        range,
+      ),
+    ).toEqual(report)
+    expect(transport.mock.calls[0]).toEqual([
+      'adminExportReport',
+      {
+        requestId: expect.any(String),
+        kind: 'users',
+        query: { q: 'Learner', status: 'active' },
+        range,
+      },
+    ])
+    expect(transport.mock.calls[1]).toEqual(['adminExportReport', { reportId: 'report_1' }])
+  })
+  it('replays the same report creation after a receive timeout and reload without creating a second operation', async () => {
+    sessionStorage.clear()
+    let downloadFailed = false
+    const report = { id: 'report_1', filename: 'users.csv', columns: [], rows: [] }
+    const transport = vi.fn<AdminTransport>().mockImplementation(async (_action, data) => {
+      if (data.reportId) {
+        if (!downloadFailed) {
+          downloadFailed = true
+          throw failed('deadline-exceeded')
+        }
+        return { report }
+      }
+      return { report: { id: 'report_1' } }
+    })
+    const range = { from: '2026-11-01', to: '2026-11-03' }
+    const first = new FirebaseAdminService('admin_1', transport, sessionStorage)
+    await expect(first.exportReport('users', {}, range)).rejects.toThrow(/thời gian chờ/)
+    const second = new FirebaseAdminService('admin_1', transport, sessionStorage)
+    await second.restorePending()
+    expect(await second.exportReport('users', {}, range)).toEqual(report)
+    expect(transport.mock.calls[0][1].requestId).toBe(transport.mock.calls[2][1].requestId)
+    expect(transport.mock.calls[0][1].requestId).toBe(transport.mock.calls[3][1].requestId)
+    expect(sessionStorage.getItem('english-battle.admin.pending.admin_1')).toBe('[]')
+  })
   it('reads published overview with the exact range, skill and granularity and reports incomplete history', async () => {
     const transport = vi
       .fn<AdminTransport>()

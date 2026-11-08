@@ -30,13 +30,13 @@ const groupKey = (date: string, granularity: string) => {
 };
 
 /** Read only the published aggregate generation, never source roots or the latest 50 activities. */
-export async function getAdminOverview(data: Data) {
+export async function getAdminOverview(data: Data, generationId?: string) {
   const range = adminRange(data.range); const duration = range.days * 86400000;
   const skill = String(data.categoryId || ""); const granularity = String(data.granularity || "day");
   const control = (await adminDb.ref("adminAnalyticsControl").get()).val();
-  const generation = control?.activeGeneration as string | undefined;
+  const generation = generationId || control?.activeGeneration as string | undefined;
   const meta = generation ? (await adminDb.ref(`adminAnalyticsGenerationMeta/${generation}`).get()).val() : null;
-  if (!generation || !meta?.ready) {
+  if (!generation || !meta?.ready || generationId && meta.expiresAt <= Date.now()) {
     throw new HttpsError("failed-precondition", "Analytics is being built.", {
       reason: "overview-not-ready",
     });

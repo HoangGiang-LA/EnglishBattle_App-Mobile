@@ -7,17 +7,11 @@ import {AdminAction, Data, validateAdminResponse} from "./contracts";
 import {AdminActor, requireCurrentAdmin} from "./guard";
 import {ADMIN_POLICY as P} from "./policy";
 import {acquireMembership, releaseMembership} from "./membership";
+import {canonicalJson, safeAuditReason} from "./shared";
+import {writeAdminAudit} from "./audit";
+export {canonicalJson} from "./shared";
 
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
-/** Sorted JSON retains types, array ordering and absent-vs-present fields. */
-export const canonicalJson = (value: unknown): string => {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value).sort().map((key) =>
-      `${JSON.stringify(key)}:${canonicalJson((value as Data)[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
-};
 export const adminOperationId = (uid: string, action: string, requestId: string) =>
   hash(JSON.stringify([uid, action, requestId]));
 
@@ -73,12 +67,6 @@ export type OperationHandlers = Partial<Record<AdminAction, OperationHandler>>;
 /** Only throw after a handler has proved no external effect or completed compensation. */
 export class SafeOperationError extends HttpsError {}
 
-const safeReason = (value: unknown, fallback: string) => {
-  const text = typeof value === "string" ? value.trim().slice(0, 500) : fallback;
-  // Reasons are the only user-authored audit field. Never copy request/error objects.
-  return /(?:bearer\s|password|passwd|token|private[_ -]?key|-----BEGIN)/i.test(text) ?
-    "[redacted sensitive reason]" : text;
-};
 const pendingError = (id: string, reason = "operation-pending") =>
   new HttpsError("aborted", "Retry with the same requestId and payload.", {
     operationId: id, reason, retryAfterMs: 2000,
@@ -108,7 +96,8 @@ export class AdminOperations {
       if (current) return current;
       return {
         id, action, actor, fingerprint, handlerVersion: handler.version, target,
-        reason: safeReason(data.reason, action), inputJson: canonicalJson(data),
+        reason: safeAuditReason(data.reason, action),
+        inputJson: canonicalJson({...data, ...(data.reason ? {reason: safeAuditReason(data.reason, action)} : {})}),
         phase: "pending", createdAt: Date.now(), dueAt: Date.now(), attempts: 0,
       };
     });
@@ -134,7 +123,7 @@ export class AdminOperations {
       expiresAt: op.completedAt! + P.auditMs,
     };
     // Deterministic key and create-once transaction: retry never duplicates audit.
-    await transactionWithRetry(this.db.ref(`adminAudit/${op.id}`), (current) => current || entry);
+    await writeAdminAudit(this.db, op.id, entry);
     await transactionWithRetry(this.db.ref(`adminOperations/${op.id}`), (current) => {
       if (!current) return current;
       if (!terminal(current)) return;
@@ -324,6 +313,10 @@ export class AdminOperations {
               "email-already-exists", "admin-self-protection", "invitation-busy", "invalid-content-relation",
               "parent-not-published", "idioms-belongs-to-vocabulary", "content-has-children",
               "duplicate-content-title", "invalid-published-question", "invalid-stored-content",
+              "report-too-large", "report-timeout", "report-expired", "report-privacy-changed",
+              "overview-not-ready", "overview-stale", "overview-history-incomplete", "overview-skill-history-incomplete",
+              "snapshot-expired", "snapshot-required", "user-index-not-ready", "question-index-not-ready",
+              "monitoring-index-not-ready",
               "immutable-version-conflict", "unsupported-audio-content"].includes(String(reason)) ? reason :
               blocked ? "partial-operation-needs-review" : "operation-rejected",
           completedAt: terminalError || blocked ? Date.now() : null,

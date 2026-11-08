@@ -16,6 +16,7 @@
     "adminBattleIndex": {".indexOn": ["startedAt", "status", "mode", "categoryId"]},
     "adminActivityIndex": {".indexOn": ["at", "type", "categoryId"]},
     "adminNotifications": {"$uid": {".indexOn": ["at", "read"]}},
+    "adminNotificationEvents": {".indexOn": ["at", "publishedAt", "expiresAt"]},
     "communityCursors": {".indexOn": ["expiresAt"]},
     "communityRankings": {".indexOn": ["expiresAt"]},
     "learningWork": {

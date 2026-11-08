@@ -7,6 +7,7 @@ export default defineConfig({
     'firebase-content.spec.ts',
     'firebase-monitoring.spec.ts',
     'firebase-analytics.spec.ts',
+    'firebase-workspace.spec.ts',
   ],
   outputDir: 'test-results/firebase',
   workers: 1,

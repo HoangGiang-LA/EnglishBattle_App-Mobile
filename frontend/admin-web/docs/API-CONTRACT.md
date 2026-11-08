@@ -1,72 +1,67 @@
-# Hợp đồng frontend admin — chuẩn bị tích hợp, chưa có backend
+# Hợp đồng dịch vụ admin
 
-Nguồn chuẩn là [`src/domain.ts`](../src/domain.ts): `AdminService`, model, input và kiểu kết quả. `src/data/mock-service.ts` là adapter nghiệp vụ hiện tại. UI lấy service qua `AdminContext`; `App` nhận prop `api` để thay adapter. Không có endpoint hoặc Cloud Function nào được triển khai trong phần việc này. Firebase Web đã cấu hình; màn hình đăng nhập dùng SDK Auth thật nhưng chỉ mở trang trạng thái tài khoản/quyền, chưa kết nối service quản trị.
+Cập nhật: 08/11/2026. Đủ 21 callable nghiệp vụ tại `asia-southeast1`, dùng adapter Firebase mặc định. Phạm vi nghiệm thu hiện tại là local/Emulator; chưa deploy production.
 
-Cập nhật 25/10/2026: [ánh xạ máy đọc](../../contracts/admin.v1.json) bao phủ đủ 22 phương thức: 21 callable đề xuất trong region `asia-southeast1` và `reset` chỉ demo. Mọi response có `serverNow` epoch ms và trường payload ghi trong file; mutation có payloadKey null chỉ trả `serverNow`. Kiểm tra tên phương thức tự động ở [verification](../../verification/README.md). Chưa có adapter transport thật. Giao diện theo Figma giữ nguyên khi thay service.
+Nguồn chuẩn:
 
-## Nguyên tắc tích hợp
+- [Kiểu giao diện và AdminService](../src/domain.ts).
+- [Adapter Firebase](../src/data/firebase-service.ts), được tạo cho UID đã xác thực.
+- [Ánh xạ callable](../../contracts/admin.v1.json) và [JSON Schema](../../contracts/admin.schemas.v1.json), xuất từ validator runtime.
+- [Quy tắc backend và biên bản kiểm thử](../../../Backend/functions/ADMIN.md).
 
-1. Web App đã đăng ký trong project Firebase hiện có, cấu hình nằm ở `src/firebase/config.ts`; không cần database riêng cho admin.
-2. Firebase Auth đã có đăng nhập, phục hồi phiên, đăng xuất và refresh claim `admin: true` trong `src/firebase/`. Bước kế tiếp là nối phiên đã xác thực với backend/API thật; quyền admin phải do server tin cậy cấp và được kiểm tra lại tại server. Màn hình thông tin claim hiện tại không thay thế việc phân quyền của backend/Rules.
-3. Viết một adapter triển khai các phương thức dưới đây. Chuyển `mode` sang union phù hợp khi thêm adapter thật; loại bỏ/bật tắt rõ demo trước phát hành. Không chuyển sang demo khi API thật lỗi.
-4. Danh sách dùng API có giới hạn, bộ lọc và phân trang. Các số tổng hợp/active users do backend tính. Không thay mock bằng lệnh đọc toàn bộ root RTDB để lọc trên web.
-5. Quyền ghi tài khoản, trạng thái, đáp án, xuất bản và dữ liệu vận hành nằm ở backend. Không đưa Firebase Admin SDK, khóa riêng hoặc service-account vào bundle.
+`MockAdminService` chỉ dùng khi chủ động bật demo; lỗi API thật không chuyển sang mock. `reset()` chỉ có hiệu lực ở demo. Bố cục 5 trang được giữ nguyên.
+
+## Phiên và phân quyền
+
+Firebase Auth đăng nhập, provision qua `ensureUserProfile`, rồi HTTP `getAdminSession` xác nhận quyền trước khi mở workspace. Mỗi callable tiếp tục kiểm tra token, claim boolean true và quyền hiện tại trong Auth, disabled, revoked và `accountAccess`; không tin actor UID do browser gửi.
+
+Không đưa Admin SDK hoặc credential server vào bundle. Web dùng SDK callable với token của phiên hiện tại. Thiếu quyền hoặc hết phiên được chuyển về luồng xác thực; phản hồi cũ sau khi đổi tài khoản/bộ lọc không ghi đè dữ liệu mới.
 
 ## Phương thức
 
-| Nhóm          | Phương thức                                | Kết quả/hành vi cần giữ                                                             |
-| ------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- |
-| Hồ sơ         | `profile`, `saveProfile(name)`             | `AdminProfile`; quyền quản trị không được thay bằng sửa hồ sơ                       |
-| Tổng quan     | `overview(range, categoryId?)`             | `Overview`; mốc thời gian, series, KPI và danh mục theo đúng bộ lọc                 |
-| Người dùng    | `users(query)`, `user(id)`                 | `Page<UserRecord>` và chi tiết; mặc định không liệt kê deleted                      |
-| Người dùng    | `saveUser({name,email}, id?)`              | Tạo/sửa hồ sơ + Auth đồng bộ ở server; xử lý email trùng                            |
-| Truy cập      | `setUserStatus(id,status,reason)`          | Khóa/mở khóa/xóa có lý do; xử lý tài khoản Auth, token và lịch sử ở backend         |
-| Ngân hàng câu | `questions(query)`, `question(id)`         | Dòng danh sách/chi tiết; chỉ admin nội dung được xem đáp án                         |
-| Câu hỏi       | `saveQuestion(input,id?,expectedVersion?)` | Trả câu hỏi phiên bản mới; từ chối sửa trên version cũ                              |
-| Câu hỏi       | `archiveQuestion(id,expectedVersion)`      | Không xóa nội dung mà phiên đang làm/lịch sử vẫn tham chiếu                         |
-| Danh mục      | `catalog()`, `saveContent(input)`          | 4 kỹ năng, chủ đề, bài học và trạng thái; giữ liên kết cha–con                      |
-| Trận          | `battles(query)`, `battle(id)`             | Danh sách công bố và chi tiết log; không có command đổi kết quả                     |
-| Hoạt động     | `activities(query)`, `audit()`             | Phân trang hoạt động; audit thật phải append ở backend                              |
-| Tìm chung     | `search(q)`                                | Kết quả giới hạn theo từng nhóm, ID và đường dẫn trang cho phép                     |
-| Thông báo     | `notifications`, `readNotifications(id?)`  | Chỉ hộp thư của admin đã đăng nhập; thay đổi trạng thái đã đọc                      |
-| Báo cáo       | `exportReport(kind,query,range)`           | Bộ lọc phải giống trang hiện tại; trả CSV nhỏ hoặc mở rộng bằng job cho dữ liệu lớn |
-| Demo          | `reset()`                                  | Chỉ phục vụ dữ liệu mẫu. Không cung cấp reset dữ liệu production qua UI này         |
+| Nhóm       | AdminService                                               | Callable                                                                      |
+| ---------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Hồ sơ      | `profile`, `saveProfile`                                   | adminGetProfile, adminUpdateProfile                                           |
+| Tổng quan  | `overview`                                                 | adminGetOverview                                                              |
+| Người dùng | `users`, `user`, `saveUser`, `setUserStatus`               | adminListUsers, adminGetUser, adminSaveUser, adminSetUserStatus               |
+| Danh mục   | `catalog`, `saveContent`                                   | adminGetCatalog, adminSaveContent                                             |
+| Câu hỏi    | `questions`, `question`, `saveQuestion`, `archiveQuestion` | adminListQuestions, adminGetQuestion, adminSaveQuestion, adminArchiveQuestion |
+| Giám sát   | `battles`, `battle`, `activities`                          | adminListBattles, adminGetBattle, adminListActivities                         |
+| Tìm kiếm   | `search`                                                   | adminSearch                                                                   |
+| Thông báo  | `notifications`, `readNotifications`                       | adminListNotifications, adminMarkNotificationsRead                            |
+| Audit      | `audit`                                                    | adminListAudit                                                                |
+| Báo cáo    | `exportReport`                                             | adminExportReport                                                             |
 
-## Model và truy vấn
+Response wire có `serverNow` và payload theo manifest; mutation có `operationId`. Adapter chuyển envelope sang kiểu UI. `notifications` và `audit` trả `Page<T>`; thông báo có thêm `unreadTotal`.
 
-- `UserRecord`: UID ổn định, mã hiển thị, tên/email, `active/banned/deleted`, thời điểm, rating/xu chỉ đọc. Form không nhận mật khẩu; cách mời người dùng/cấp mật khẩu ban đầu do backend chọn khi làm Auth thật.
-- `QuestionInput`: kỹ năng/chủ đề/bài học, câu hỏi, 4 option có ID ổn định, `correctOptionId`, giải thích, passage/audio/text nghe, difficulty, status. Metadata `id/code/version/createdAt/updatedAt` do service trả.
-- Mã hiển thị không phải UID. Không dùng tên/email làm khóa liên kết trận hay phiên làm bài.
-- `ListQuery`: `q,status,categoryId,difficulty,mode,page,pageSize`. Các kích thước trang UI là 10/20/50; trang đầu là 1. Bộ lọc thay đổi đặt về trang đầu.
-- `Page<T>` trả `items,total,page,pageSize` và dùng cùng thứ tự có khóa ID phá hòa. Backend RTDB cần chỉ mục/snapshot phù hợp cho giao diện nhảy trang; nếu chọn cursor cần điều chỉnh adapter/điều khiển phân trang, không giả lập offset bằng cách đọc mọi dòng.
-- `catalog()` hiện phục vụ tập danh mục nhỏ; nếu tăng lớn cần thêm phân trang/chỉ mục trước khi dùng thật.
-- `DateRange` dùng `YYYY-MM-DD`, bao gồm cả ngày cuối theo `Asia/Ho_Chi_Minh`; tối đa 366 ngày trong UI hiện tại. Server phải tự kiểm tra lại.
-- Admin dùng `version: 1`, RTDB dùng `currentVersion: v1`; adapter đổi giữa integer và khóa `vN`. Options array `{id,text}` đổi thành map keyed theo ID với `order`; không lấy vị trí làm ID. Version/snapshot đã tham chiếu phải bất biến.
-- Trạng thái trận UI `ongoing` tổng hợp từ `playing/reconnecting`; không ghi trực tiếp enum UI vào node authoritative. Thi đấu ngày/phòng riêng vẫn giữ bộ lọc và model nhưng triển khai nghiệp vụ sau.
-- Hai tab leaderboard người dùng cùng rating tích lũy hiện tại của tất cả người chơi. Analytics theo khoảng ngày là bộ lọc thống kê riêng, không tự đổi metric rating thành điểm kiếm trong kỳ.
+## Phân trang, đồng thời và retry
 
-## Kiểm tra dữ liệu và tính nhất quán
+- Danh sách dùng snapshot/index phía server, trang 10/20/50; snapshot gắn UID, filter và kích thước trang. Adapter giữ snapshot cho các trang tiếp theo. Browser không tải root RTDB để giả offset.
+- Profile/user/catalog sửa bằng `expectedRevision`; câu hỏi dùng `expectedVersion`. Xung đột yêu cầu đọc lại, không tự ghi đè.
+- Adapter lưu payload và requestId theo UID trong sessionStorage trước mutation. Timeout/reload giữ cùng intent; server dedupe UID + action + requestId và từ chối payload khác.
+- Các lần đọc giống nhau đang chờ được dùng chung trong cùng adapter và generation. Kết quả không được cache sau khi hoàn tất; mutation làm đổi generation.
+- Audit gắn operation ID, không ghi mật khẩu/token. Trạng thái Auth–RTDB được phục hồi bằng các bước operation, không giả định là một transaction.
 
-- Tên/email được trim; email trùng phải do Auth/backend xác nhận, không chỉ kiểm tra tại UI.
-- Bốn lựa chọn phải có ID/text khác nhau, đáp án nằm trong tập đó. Câu published cần giải thích; reading cần passage; listening cần audio hoặc text. Chủ đề/bài phải đúng kỹ năng và các cấp cha phải được xuất bản trước.
-- Audio base64 trong mock chỉ nhằm xem trước cục bộ. Tích hợp thật phải tải lên Storage có kiểm tra quyền/kích thước/loại file và lưu metadata; không đưa base64 vào RTDB production. Xử lý file mồ côi nếu lưu câu hỏi thất bại.
-- Thay đổi câu không được sửa version/snapshot của phiên đang học/thi đấu. Chống stale update bằng `expectedVersion` hoặc cơ chế tương đương tại server.
-- Với thao tác ghi thật, bổ sung khóa request chống xử lý lặp khi retry/timeout, trạng thái pending và phục hồi thao tác. Mock hiện chỉ khóa việc gửi cùng form và tuần tự hóa ghi trong một instance; không bảo đảm idempotency giữa nhiều máy.
-- Các callable ghi trong `admin.v1.json` nhận `requestId`; adapter thật giữ ID của thao tác qua retry/timeout thay vì tạo ID mỗi lần bấm lại. Server dedupe theo UID+operation+ID, kiểm tra quyền/expectedVersion và ghi audit cùng kết quả. Đây là việc phải triển khai khi nối API, chưa có trong mock transport.
-- Backend audit phải ghi actor UID lấy từ token, thao tác, target, thời gian server và kết quả; không tin tên actor do client gửi và không lưu mật khẩu/token.
-- Xóa tài khoản thật cần thiết kế đồng bộ Auth/RTDB và ẩn danh hóa lịch sử; trạng thái mock không thay thế việc thu hồi truy cập thật.
+## Tìm kiếm, thông báo và audit
 
-## Định nghĩa chỉ số dùng trong demo
+Tìm kiếm nhận 2–100 ký tự sau trim, tối đa 20 kết quả từ index riêng tư. Chỉ trả đường dẫn Users/Content/Battles và ID đã kiểm tra. Không trả đáp án hoặc lựa chọn chưa công bố.
 
-- Total users: số tài khoản chưa deleted tại hiện tại. Phần trăm bên dưới là thay đổi số đăng ký mới so với khoảng trước có cùng độ dài.
-- Active users: UID khác nhau có sự kiện học/trận trong kỳ. Số liệu production phải tính cả hai người tham gia và loại trừ sự kiện giả/không hợp lệ; fixture chỉ mô tả hoạt động mẫu.
-- Battles/lessons completed: số sự kiện hoàn thành trong tập mẫu thuộc kỳ. Khi viết backend, chọn rõ nhóm theo ngày bắt đầu hay ngày kết thúc và thống nhất toàn hệ thống.
-- Accuracy: tổng đúng / tổng trả lời. Completion: tổng hoạt động hoàn thành / tổng hoạt động bắt đầu trong tập đang lọc. Mẫu số 0 trả null, UI hiển thị N/A.
-- Tỷ trọng trong bảng kỹ năng loại mixed-skill để tổng không bị cộng trùng. Donut tính số bài học hoàn thành theo kỹ năng.
-- CSV Analytics xuất từng ngày của khoảng đã chọn và kỹ năng được lọc. Export Users/Questions/Battles dùng bộ lọc danh sách, không áp khoảng ngày chưa có trên các trang đó.
+Thông báo lấy từ sự kiện server thật, trạng thái đọc riêng cho từng UID admin. `readNotifications(id)` đánh dấu một thông báo; bỏ id dùng cutoff server từ danh sách gần nhất. Retry giữ nguyên cutoff. Event nghiệp vụ đến muộn nhưng publish sau cutoff vẫn chưa đọc.
 
-## Trạng thái lỗi cần adapter thật ánh xạ
+Audit hỗ trợ từ khóa actor/action/target/reason, kết quả, khoảng ngày và phân trang. Ngày tính theo Asia/Ho_Chi_Minh, gồm cả ngày cuối. Giới hạn nguồn, retention và độ trễ tại [quy tắc Bước 6](../../../Backend/functions/ADMIN-WORKSPACE.md).
 
-Hết phiên → đăng nhập lại; thiếu quyền → trang từ chối; email trùng/validation → lỗi trong form; version conflict → yêu cầu tải lại; lỗi mạng/timeout → giữ form và cho thử lại; không tìm thấy → đóng chi tiết hoặc làm mới danh sách. Không báo thành công nếu server chưa xác nhận.
+## Xuất CSV
 
-Các tài liệu Firebase dùng cho giai đoạn tích hợp sau: [Web setup](https://firebase.google.com/docs/web/setup), [custom claims](https://firebase.google.com/docs/auth/admin/custom-claims), [callable functions](https://firebase.google.com/docs/functions/callable).
+`exportReport` dùng cùng callable theo hai bước: tạo bằng requestId nhận metadata, sau đó nhận rows bằng reportId. Mỗi bước kiểm tra quyền hiện tại, chủ sở hữu, hạn 15 phút và thay đổi privacy khi xóa tài khoản. Operation chỉ lưu metadata.
+
+Báo cáo Users/Questions/Battles xuất toàn bộ tập lọc trên server, bỏ page/pageSize/cursor/snapshotId của bảng. Chỉ áp dụng filter ngày khi bảng có filter đó. Analytics giữ range/skill/granularity và generation đang hiển thị. CSV có BOM UTF-8, CRLF, escape dấu quote và chống formula injection.
+
+Tối đa 5.000 dòng, 1 MiB CSV, dưới 2 MiB JSON và 20 giây capture. Vượt giới hạn báo lỗi và yêu cầu thu hẹp bộ lọc; chưa có job báo cáo lớn. Timeout bước nhận giữ intent để retry, khôi phục phiên không tự tải file xuống.
+
+## Nghiệp vụ và lỗi
+
+Rating/xu chỉ đọc; tài khoản deleted không mở lại. Nội dung sửa tạo version bất biến, không thay đề phiên cũ. Listening dùng TTS; audio upload, daily/private, FCM và đảo kết quả trận thuộc phạm vi riêng.
+
+Thống kê thật theo [quy tắc Bước 5](../../../Backend/functions/ADMIN-ANALYTICS.md): active UID distinct trong kỳ, accuracy tổng đúng/tổng slot, completion theo cohort bắt đầu, mixed-skill theo câu thực tế, kỳ trước cùng độ dài. Response công bố asOf/lag/coverage; dữ liệu thiếu hoặc mẫu số 0 trả N/A khi phù hợp.
+
+Adapter ánh xạ hết phiên/thiếu quyền, validation/email trùng, not-found, version conflict, timeout và lỗi tạm thời. Form giữ nội dung khi thất bại; chỉ báo thành công sau khi server xác nhận. Xem [hướng dẫn chạy và kiểm thử](../README.md).

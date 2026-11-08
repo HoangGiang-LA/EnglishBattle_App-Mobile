@@ -24,6 +24,9 @@ async function enter(page: Page) {
   await expect(page.getByRole('button', { name: /^Edit Q/ }).first()).toBeVisible()
 }
 test.beforeEach(async () => {
+  // Functional cases are isolated from the quota consumed by preceding browser cases and warmup.
+  // This file has already asserted the dedicated demo project and emulator hosts.
+  await db.ref('adminRateLimits').remove()
   await auth.setCustomUserClaims(adminUid, { admin: true })
   await auth.updateUser(adminUid, { disabled: false })
 })

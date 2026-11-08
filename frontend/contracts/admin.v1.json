@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "revision": "2026-11-03-analytics",
-  "implementation": "16 business handlers include Overview for Dashboard/Analytics; remaining 5 callables are guarded and unimplemented",
-  "implementedCallables": ["adminGetProfile", "adminUpdateProfile", "adminListUsers", "adminGetUser", "adminSaveUser", "adminSetUserStatus", "adminGetCatalog", "adminSaveContent", "adminListQuestions", "adminGetQuestion", "adminSaveQuestion", "adminArchiveQuestion", "adminListBattles", "adminGetBattle", "adminListActivities", "adminGetOverview"],
+  "revision": "2026-11-07-workspace",
+  "implementation": "All 21 admin business callables implemented; daily/private battle modes remain deferred",
+  "implementedCallables": ["adminGetProfile", "adminUpdateProfile", "adminListUsers", "adminGetUser", "adminSaveUser", "adminSetUserStatus", "adminGetCatalog", "adminSaveContent", "adminListQuestions", "adminGetQuestion", "adminSaveQuestion", "adminArchiveQuestion", "adminListBattles", "adminGetBattle", "adminListActivities", "adminGetOverview", "adminSearch", "adminListNotifications", "adminMarkNotificationsRead", "adminListAudit", "adminExportReport"],
   "schemas": "admin.schemas.v1.json",
   "schemaReference": "For callable X, use #/$defs/XRequest and #/$defs/XResponse in schemas",
   "runtimeSource": "../../Backend/functions/src/admin/contracts.ts",
@@ -32,10 +32,14 @@
     "notifications": {"callable": "adminListNotifications", "request": ["query?"], "payloadKey": "page"},
     "readNotifications": {"callable": "adminMarkNotificationsRead", "request": ["id?", "throughAt?", "requestId", "reason?"], "payloadKey": null},
     "audit": {"callable": "adminListAudit", "request": ["query?"], "payloadKey": "page"},
-    "exportReport": {"callable": "adminExportReport", "request": ["kind", "query", "range", "requestId", "reason?"], "payloadKey": "report"},
+    "exportReport": {"callable": "adminExportReport", "request": ["kind", "query", "range", "requestId", "reason?"], "receiveRequest": ["reportId"], "payloadKey": "report"},
     "reset": {"demoOnly": true}
   },
   "mapping": {
+    "search": "2-100 trimmed characters; private indexed scans bounded at 10000 rows/8 MiB/20 seconds per index; max 20 allowlisted users/content/battles route results with live identity privacy",
+    "notifications": "Immutable real business/audit events, 30-day retention, max 5000 retained events; each admin UID has independent read IDs and publication watermark. Mark-all keeps the server snapshot cutoff across retries; delayed business events published later remain unread",
+    "audit": "Actor/filter-bound 15-minute snapshots, numbered pages 10/20/50, actor/action/target/result/q/local date filters. Backend create-once audit IDs and bracketed writers prevent retry duplicates or torn totals",
+    "reports": "Create with requestId returns metadata only; receive with reportId returns CSV columns/rows. Both recheck live access, actor ownership, 15-minute expiry and deletion privacy. Operation retains metadata only. Limits 5000 rows, 1 MiB CSV, under 2 MiB JSON and 20-second source capture; over-limit errors never truncate",
     "questionVersion": "Admin integer 1 corresponds to RTDB currentVersion v1; immutable questionVersions/id/v1 and questionAnswers/id/v1",
     "options": "Four stable IDs beginning with a letter or underscore; array maps to RTDB keyed options {optionId:{text,order:1..4}}",
     "contentPublication": "Draft/archived ancestors gate new session selection; descendant statuses and existing snapshots are retained",

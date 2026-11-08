@@ -1311,6 +1311,36 @@ table th:last-child {
   font-size: 10px;
   padding: 8px;
 }
+.notification-items {
+  max-height: 360px;
+  overflow-y: auto;
+}
+.notification-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+}
+.notification-pager select {
+  max-width: 90px;
+}
+.audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.audit-filters > * {
+  min-width: 0;
+}
+.timeline code {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
 .notification {
   position: relative;
   align-items: flex-start !important;

@@ -1,13 +1,13 @@
 # English Battle — Web admin
 
-Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. **Cả 5 trang dùng Firebase qua 16 callable admin**, gồm Overview cho Dashboard/Analytics. Tìm kiếm chung, thông báo, xem audit và export còn chờ Bước 6; không fallback sang dữ liệu mẫu.
+Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. **Đủ 21 callable admin** phục vụ 5 trang, tìm kiếm, thông báo, audit và export; không fallback sang dữ liệu mẫu.
 
 ## Chạy trên máy của bạn
 
 Khi dùng Firebase Spark và chưa deploy Functions, mở PowerShell:
 
 ```powershell
-cd "D:\visual studio\EnglishBattle-full\frontend\admin-web"
+cd "D:\Projects\EnglishBattle-full\frontend\admin-web"
 npm.cmd run dev:local
 ```
 
@@ -50,7 +50,10 @@ Giao diện dùng tiếng Anh như 5 ảnh thiết kế. Font Inter và icon đ�
 - Battles: đọc trận nhanh thật, hai người chơi, điểm vòng đã chốt, lý do kết thúc, settlement và các event server có thật. Chi tiết tự tải lại 10 giây; Refresh danh sách tạo snapshot mới. Danh sách công bố `asOf` vì worker cập nhật theo vòng quét.
 - **View activities** trong Battles mở hoạt động đăng ký/học/thi đấu, lọc loại và phân trang 10/20/50. Tên tài khoản xóa mềm được ẩn danh cả trên snapshot cũ. Daily/private báo chưa triển khai.
 - Dashboard/Analytics: KPI, UID active không trùng, tỷ lệ có trọng số và cohort bắt đầu trong kỳ; lọc kỹ năng gồm mixed-skill, ngày/tuần/tháng lịch thật. API chỉ đọc generation server đã dựng xong, hiển thị asOf/lag/coverage; lịch sử thiếu trường báo N/A hoặc lỗi rõ, không gán số 0 giả.
-- Tìm kiếm chung, thông báo, xem audit và export thuộc Bước 6. Xem [Bước 2](../../Backend/functions/ADMIN-USERS.md), [Bước 3](../../Backend/functions/ADMIN-CONTENT.md), [Bước 4](../../Backend/functions/ADMIN-MONITORING.md) và [Bước 5](../../Backend/functions/ADMIN-ANALYTICS.md) cho quy tắc, giới hạn và phục hồi.
+- Tìm kiếm chung: user/câu hỏi/trận qua index riêng tư, 2–100 ký tự, tối đa 20 kết quả, dẫn tới trang hiện có.
+- Thông báo: event nghiệp vụ thật, phân trang và unreadTotal toàn hộp thư; read state riêng theo UID, cutoff giữ nguyên qua retry. Audit có tìm actor/action/target/reason, lọc kết quả/ngày và phân trang 10/20/50.
+- Export tạo rồi nhận qua cùng API, kiểm tra quyền/hạn dùng ở mỗi bước; xuất toàn bộ kết quả lọc, BOM UTF-8 và chống CSV formula injection. Tối đa 5.000 dòng/1 MiB CSV; quá giới hạn báo lỗi. Metadata/intent được giữ khi nhận báo cáo timeout.
+- Xem [Bước 2](../../Backend/functions/ADMIN-USERS.md), [Bước 3](../../Backend/functions/ADMIN-CONTENT.md), [Bước 4](../../Backend/functions/ADMIN-MONITORING.md), [Bước 5](../../Backend/functions/ADMIN-ANALYTICS.md) và [Bước 6](../../Backend/functions/ADMIN-WORKSPACE.md) cho quy tắc, giới hạn và phục hồi.
 
 ## Chế độ demo để xem thiết kế
 
@@ -84,10 +87,10 @@ Giữ rating và xu; không có XP/level, Premium, thanh toán hoặc doanh thu.
 
 ```text
 src/
-  domain.ts            # Model và hợp đồng AdminService cho tích hợp sau
+  domain.ts            # Model và hợp đồng AdminService dùng chung
   context.ts           # Service, ngày chọn và thông báo dùng chung
   data/
-    firebase-service.ts # Adapter Profile/Users/Content/Battles/Activities; requestId, revision/version, snapshot
+    firebase-service.ts # Adapter đủ 21 phương thức; requestId, revision/version, snapshot
     mock-service.ts    # Mô phỏng có kiểm tra dữ liệu, lưu và nhật ký
     metrics.ts         # Tính KPI từ dữ liệu mẫu
     seed.ts            # Khởi tạo người dùng/trận/hoạt động mẫu
@@ -100,7 +103,7 @@ docs/design-reference/ # 5 ảnh thiết kế do người dùng cung cấp
 docs/qa/               # Ảnh chụp app từ kiểm thử trình duyệt
 ```
 
-Nghiệm thu Profile/Users/Content với SDK thật nối Emulator riêng: chạy `npm.cmd run test:admin:web` trong `Backend/functions`. Launcher dùng project `demo-englishbattle-admin`, web 15173, HTTP 18180 và Auth/Database/Functions 19299/19200/15003, không đọc credential thật. Bộ `npm.cmd run test:e2e` thông thường kiểm tra demo desktop/mobile ở cổng riêng 15174. Artifact của hai bộ nằm riêng trong `test-results/firebase` và `test-results/demo`.
+Nghiệm thu đủ 21 API, 5 trang và tiện ích dùng chung với SDK thật nối Emulator riêng: chạy `npm.cmd run test:admin:web` trong `Backend/functions`. Launcher dùng project `demo-englishbattle-admin`, web 15173, HTTP 18180 và Auth/Database/Functions 19299/19200/15003, không đọc credential thật. Bộ `npm.cmd run test:e2e` thông thường kiểm tra demo desktop/mobile ở cổng riêng 15174. Artifact của hai bộ nằm riêng trong `test-results/firebase` và `test-results/demo`.
 
 `tools/refresh-demo-content.ps1` chỉ đọc seed trong repository và ghi lại snapshot cho frontend admin; không kết nối Firebase hoặc sửa backend:
 
@@ -122,7 +125,7 @@ Kiểm thử trình duyệt mặc định dùng Edge đã cài trên Windows. M�
 
 ## Bàn giao
 
-- [Hợp đồng tích hợp backend sau này](docs/API-CONTRACT.md)
+- [Hợp đồng dịch vụ quản trị](docs/API-CONTRACT.md)
 - [Bàn giao trước backend và quy tắc đã chốt ngày 25/10](../docs/PRE-BACKEND-HANDOFF.md)
 - [Kiểm tra hợp đồng, Rules emulator và bản export Firebase](../verification/README.md)
 - [Phạm vi thiết kế và kiểm tra](docs/VERIFICATION.md)

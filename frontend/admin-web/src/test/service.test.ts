@@ -16,7 +16,10 @@ describe('Demo admin workflows', () => {
     await api.saveUser({ name: 'Updated Learner', email: 'learner-new@example.test' }, u.id)
     const reloaded = new MockAdminService(localStorage, 0)
     expect((await reloaded.users({ q: 'Updated Learner' })).total).toBe(1)
-    expect((await reloaded.audit()).map((a) => a.action)).toEqual(['user.update', 'user.create'])
+    expect((await reloaded.audit()).items.map((a) => a.action)).toEqual([
+      'user.update',
+      'user.create',
+    ])
   })
   it('requires a reason for account actions and preserves anonymized battle references on deletion', async () => {
     const api = new MockAdminService(undefined, 0),
@@ -110,7 +113,7 @@ describe('Demo admin workflows', () => {
     const q = (await api.questions({ status: 'published' })).items[0]
     await expect(api.archiveQuestion(q.id, q.version)).rejects.toThrow('Nothing was saved')
     expect((await api.question(q.id)).status).toBe('published')
-    expect(await api.audit()).toEqual([])
+    expect((await api.audit()).items).toEqual([])
   })
   it('keeps the four skills fixed and validates topic / lesson relationships', async () => {
     const api = new MockAdminService(undefined, 0),
@@ -209,13 +212,13 @@ describe('Demo admin workflows', () => {
   it('marks notifications read and resets local changes; a failed request can be retried', async () => {
     const api = new MockAdminService(localStorage, 0)
     await api.readNotifications()
-    expect((await api.notifications()).every((n) => n.read)).toBe(true)
+    expect((await api.notifications()).unreadTotal).toBe(0)
     api.simulateNextFailure()
     await expect(api.users({})).rejects.toThrow('Simulated')
     expect((await api.users({})).total).toBe(54)
     await api.saveUser({ name: 'Reset me', email: 'reset@example.test' })
     await api.reset()
     expect((await api.users({ q: 'reset@example.test' })).total).toBe(0)
-    expect((await api.notifications()).some((n) => !n.read)).toBe(true)
+    expect((await api.notifications()).unreadTotal).toBeGreaterThan(0)
   })
 })

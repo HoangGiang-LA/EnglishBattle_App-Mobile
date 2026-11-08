@@ -19,6 +19,8 @@ const {runBattleIndexMaintenance, runActivityIndexMaintenance} = require('./lib/
 const {findQuickBattle} = require('./lib/be1/battle/matchmaking.js')
 const {transactBattle} = require('./lib/be1/battle/battleService.js')
 const {runAdminAnalyticsMaintenance} = require('./lib/admin/analyticsWorker.js')
+const {runAdminNotificationMaintenance} = require('./lib/admin/notificationWorker.js')
+const {isOperation} = require('./lib/admin/contracts.js')
 const {startAttempt} = require('./lib/be1/practice/startAttempt.js')
 const {submitAttemptAnswer} = require('./lib/be1/practice/submitAttemptAnswer.js')
 const {advanceAttempt} = require('./lib/be1/practice/advanceAttempt.js')
@@ -51,6 +53,11 @@ try {
     await provisionUserProfile(learner.uid)
     learners.push(learner)
   }
+  env.ADMIN_QA_SECOND_UID = learners[10].uid
+  env.ADMIN_QA_SECOND_EMAIL = learners[10].email
+  env.ADMIN_QA_FORMULA_UID = learners[9].uid
+  env.ADMIN_QA_QUESTION_ID = Object.keys(contentSeed.questions)[0]
+  await auth.setCustomUserClaims(learners[10].uid, {admin: true})
   await findQuickBattle(learners[0].uid, learners[0].displayName, 'browser_monitor_a', 'browser_monitor_a')
   const matched = await findQuickBattle(learners[1].uid, learners[1].displayName, 'browser_monitor_b', 'browser_monitor_b')
   env.ADMIN_QA_BATTLE_ID = matched.attemptId
@@ -88,6 +95,13 @@ try {
     if ((await db.ref('adminQuestionIndexMeta/ready').get()).val()) break
   }
   assert.equal((await db.ref('adminQuestionIndexMeta/ready').get()).val(), true, 'Question QA index must be ready')
+  for (let i = 0; i < 100; i++) {
+    await db.ref('adminNotificationControl/nextRunAt').set(0)
+    await runAdminNotificationMaintenance()
+    const control = (await db.ref('adminNotificationControl').get()).val()
+    if (control.ready && !control.phase) break
+  }
+  assert.equal((await db.ref('adminNotificationControl/ready').get()).val(), true, 'Notification QA discovery must finish')
   // Each callable can have a separate cold Node worker in Functions Emulator.
   // Warm entrypoints before the browser's 30-second transport timeout starts.
   const adminContract = JSON.parse(readFileSync(new URL('../../../../frontend/contracts/admin.v1.json', import.meta.url), 'utf8'))
@@ -118,7 +132,9 @@ try {
     ['adminGetBattle', {id: matched.attemptId}],
     ['adminListActivities', {query: {page: 1, pageSize: 10}}],
     ['adminGetOverview', {range: {from: qaDay, to: qaDay}}],
+    ['adminSearch', {q: 'qa'}], ['adminListNotifications', {}], ['adminListAudit', {}],
   ]
+  for (const action of adminContract.implementedCallables.filter(isOperation)) reads.push([action, {}])
   for (const [action, data] of reads) {
     await Promise.all([0, 1].map(async () => {
       const response = await fetch(`http://127.0.0.1:15003/demo-englishbattle-admin/asia-southeast1/${action}`, {
@@ -126,7 +142,7 @@ try {
         body: JSON.stringify({data}), signal: AbortSignal.timeout(120000),
       })
       await response.arrayBuffer()
-      assert.equal(response.status, 200, `Authenticated QA read must be ready: ${action}`)
+      assert.equal(response.status, isOperation(action) ? 400 : 200, `Authenticated QA entrypoint must be ready: ${action}`)
     }))
   }
   console.info('Authenticated admin reads ready for browser QA')

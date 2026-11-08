@@ -13,6 +13,8 @@ import {runRoleMaintenance} from "./roles";
 import {runQuestionIndexMaintenance} from "./questionIndex";
 import {runBattleIndexMaintenance, runActivityIndexMaintenance} from "./monitoringIndex";
 import {runAdminAnalyticsMaintenance} from "./analyticsWorker";
+import {runAdminNotificationMaintenance} from "./notificationWorker";
+import {recoverAuditWriters} from "./audit";
 
 /** Bounded due-index recovery, with an independent lease for housekeeping. */
 export async function runAdminMaintenance(
@@ -31,6 +33,7 @@ export async function runAdminMaintenance(
       runUserIndexMaintenance(), runInvitationMaintenance(), runRoleMaintenance(db), runQuestionIndexMaintenance(),
       runBattleIndexMaintenance(), runActivityIndexMaintenance(),
       runAdminAnalyticsMaintenance(),
+      runAdminNotificationMaintenance(), recoverAuditWriters(db),
     ]);
     for (const result of projections) {
       if (result.status === "rejected") console.warn("Admin projection deferred", {code: "unavailable"});

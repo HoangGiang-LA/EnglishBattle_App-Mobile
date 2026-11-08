@@ -149,11 +149,14 @@ export const adminDefinitions = {
     page: enumeration("users", "content", "battles"), query: text(150),
   }),
   report: object({
+    id, asOf: integer(),
     filename: {type: "string", pattern: "^[A-Za-z0-9_-]+\\.csv$", maxLength: 100},
     columns: {...array(text(100, 1), 50), minItems: 1},
     rows: array(array({anyOf: [{type: "string"}, {type: "number"}]}, 50), P.maxExportRows),
     total: integer(), expiresAt: integer(),
   }),
+  reportMeta: object({id, asOf: integer(), total: {...integer(), maximum: P.maxExportRows}, expiresAt: integer(),
+    filename: {type: "string", pattern: "^[A-Za-z0-9_-]+\\.csv$", maxLength: 100}}),
   range: object({
     from: {type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$"},
     to: {type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$"},
@@ -162,9 +165,10 @@ export const adminDefinitions = {
   questionsQuery: query({status: contentStatus, categoryId: skill, difficulty}),
   battlesQuery: query({status: battleStatus, mode, categoryId: mixedSkill, range: ref("range")}),
   activitiesQuery: query({type: enumeration("user", "lesson", "battle"), categoryId: mixedSkill, range: ref("range")}),
-  auditQuery: query({actor: id, action: text(64, 1), result: audit.properties.result,
+  auditQuery: query({actor: id, action: text(64, 1), target: text(256, 1), result: audit.properties.result,
     range: ref("range")}),
-  notificationsQuery: query({unreadOnly: {type: "boolean"}}),
+  notificationsQuery: object({page: queryBase.page, pageSize: queryBase.pageSize, cursor: queryBase.cursor,
+    snapshotId: queryBase.snapshotId, unreadOnly: {type: "boolean"}}, []),
 };
 
 const page = (item: string, maxItems = 50) => object({
@@ -225,9 +229,12 @@ export const adminContracts = {
     })),
   },
   adminListActivities: {request: request({query: ref("activitiesQuery")}), response: envelope("page", page("activity"))},
-  adminSearch: {request: request({q: nonempty(100)}), response: envelope("items", array(ref("searchItem"), 20))},
+  adminSearch: {request: request({q: {...nonempty(100), minLength: 2}}), response: envelope("items", array(ref("searchItem"), 20))},
   adminListNotifications: {
-    request: request({query: ref("notificationsQuery")}, []), response: envelope("page", page("notification")),
+    request: request({query: ref("notificationsQuery")}, []), response: envelope("page", {
+      ...page("notification"), properties: {...page("notification").properties, unreadTotal: integer(), projectionAsOf: integer()},
+      required: [...page("notification").required, "unreadTotal", "asOf", "projectionAsOf"],
+    }),
   },
   adminMarkNotificationsRead: {
     request: request({...writeFields, id, throughAt: integer()}, ["requestId"]),
@@ -235,9 +242,10 @@ export const adminContracts = {
   },
   adminListAudit: {request: request({query: ref("auditQuery")}, []), response: envelope("page", page("audit"))},
   adminExportReport: {
-    request: request({...writeFields, kind: enumeration("users", "questions", "battles", "analytics"),
-      query: {type: "object"}, range: ref("range")}, ["requestId", "kind", "query", "range"]),
-    response: envelope("report", ref("report"), true), operation: true,
+    request: {oneOf: [request({reportId: id}), request({...writeFields,
+      kind: enumeration("users", "questions", "battles", "analytics"), query: {type: "object"},
+      range: ref("range")}, ["requestId", "kind", "query", "range"])]},
+    response: envelope("report", {oneOf: [ref("reportMeta"), ref("report")]}, true), operation: true,
   },
 } satisfies Record<string, {request: Schema; response: Schema; operation?: boolean}>;
 
@@ -317,12 +325,22 @@ export function validateAdminRequest(action: AdminAction, value: unknown): Data 
   if (action === "adminMarkNotificationsRead" && (!!data.id === (data.throughAt !== undefined))) {
     throw new HttpsError("invalid-argument", "Select an ID or a read-all cutoff.");
   }
-  if (action === "adminExportReport") {
+  if (action === "adminMarkNotificationsRead" && Number(data.throughAt || 0) > Date.now()) {
+    throw new HttpsError("invalid-argument", "A read cutoff cannot be in the future.");
+  }
+  if (action === "adminSearch" && String(data.q).trim().length < 2) {
+    throw new HttpsError("invalid-argument", "Enter at least two characters.");
+  }
+  if (action === "adminExportReport" && !data.reportId) {
     const kind = String(data.kind);
-    const schema = kind === "analytics" ? object({categoryId: skill}, []) : ref(`${kind}Query`);
+    const schema = kind === "analytics" ? object({categoryId: skill,
+      granularity: enumeration("day", "week", "month"), generation: id}, []) : ref(`${kind}Query`);
     if (!validate(`export:${kind}`, schema, data.query) ||
         ["page", "pageSize", "cursor", "snapshotId"].some((key) => q?.[key] !== undefined)) {
       throw new HttpsError("invalid-argument", "Export requires filters for the complete result set.");
+    }
+    if (kind === "battles" && q?.mode && q.mode !== "quick") {
+      throw new HttpsError("unimplemented", "Daily and private battle export is not implemented.");
     }
   }
   return data;
@@ -341,7 +359,8 @@ export function validateAdminResponse(action: AdminAction, value: unknown): void
   }
   if (action === "adminExportReport") {
     const report = (value as Data).report as {rows: unknown[][]; columns: string[]; total: number};
-    if (report.rows.length !== report.total || report.rows.some((row) => row.length !== report.columns.length)) {
+    if (report.rows && (report.rows.length !== report.total ||
+        report.rows.some((row) => row.length !== report.columns.length))) {
       throw new HttpsError("internal", "Incomplete admin report.");
     }
   }

@@ -25,7 +25,18 @@ import type { AdminService, PageId } from './domain'
 import { loadWorkspaceService } from './data/firebase-service'
 import { AdminContext } from './context'
 import { useDebounced, useResource, useRoute } from './hooks'
-import { Avatar, Empty, ErrorState, Field, FormError, Loading, Modal } from './components'
+import {
+  Avatar,
+  Empty,
+  ErrorState,
+  Field,
+  FormError,
+  Loading,
+  Modal,
+  Pagination,
+  RangePicker,
+  SearchInput,
+} from './components'
 import { dateTime, defaultRange, message } from './lib'
 import { SignInForm } from './firebase/SignIn'
 import type { AuthGateway, FirebaseSession } from './firebase/auth'
@@ -206,8 +217,14 @@ function AdminWorkspace({
     [search, setSearch] = useState(''),
     [online, setOnline] = useState(navigator.onLine)
   const [previewingError, setPreviewingError] = useState(false)
+  const [noticePage, setNoticePage] = useState(1),
+    [noticeSize, setNoticeSize] = useState(10),
+    [unreadOnly, setUnreadOnly] = useState(false)
   const profile = useResource(() => api.profile()),
-    notifications = useResource(() => api.notifications())
+    notifications = useResource(
+      () => api.notifications({ page: noticePage, pageSize: noticeSize, unreadOnly }),
+      [noticePage, noticeSize, unreadOnly],
+    )
   const debouncedSearch = useDebounced(search),
     results = useResource(() => api.search(debouncedSearch), [debouncedSearch])
   const searchRef = useRef<HTMLInputElement>(null),
@@ -262,7 +279,7 @@ function AdminWorkspace({
     setMobileNav(false)
     setPopover(null)
   }
-  const unread = notifications.data?.filter((n) => !n.read).length || 0,
+  const unread = notifications.data?.unreadTotal || 0,
     name =
       (api.mode === 'firebase' && profile.data?.name) ||
       session.name ||
@@ -350,6 +367,7 @@ function AdminWorkspace({
                   ref={searchRef}
                   placeholder="Search anything…"
                   aria-label="Search anything"
+                  maxLength={100}
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value)
@@ -371,7 +389,11 @@ function AdminWorkspace({
                 className="icon-btn bell"
                 aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}
                 aria-expanded={popover === 'notifications'}
-                onClick={() => setPopover(popover === 'notifications' ? null : 'notifications')}
+                onClick={() => {
+                  setNoticePage(1)
+                  if (popover !== 'notifications') notifications.reload()
+                  setPopover(popover === 'notifications' ? null : 'notifications')
+                }}
               >
                 <Bell size={19} />
                 {unread > 0 && <i />}
@@ -423,40 +445,125 @@ function AdminWorkspace({
                   </h3>
                   <button
                     className="text-btn"
-                    onClick={() => api.readNotifications().catch((e) => toast(message(e), true))}
+                    disabled={notifications.loading || !unread}
+                    onClick={async () => {
+                      try {
+                        await api.readNotifications()
+                        setNoticePage(1)
+                      } catch (e) {
+                        toast(message(e), true)
+                      }
+                    }}
                   >
                     Mark all read
                   </button>
                 </div>
-                {notifications.error ? (
-                  <p role="alert">{notifications.error}</p>
-                ) : !notifications.data?.length ? (
-                  <p>You’re all caught up.</p>
-                ) : (
-                  notifications.data.map((n) => (
+                <div className="popover-heading">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={unreadOnly}
+                      onChange={(e) => {
+                        setUnreadOnly(e.target.checked)
+                        setNoticePage(1)
+                      }}
+                    />{' '}
+                    Unread only
+                  </label>
+                  <button
+                    className="text-btn"
+                    onClick={() => {
+                      setNoticePage(1)
+                      notifications.reload()
+                    }}
+                  >
+                    Refresh
+                  </button>
+                </div>
+                {notifications.loading ? (
+                  <p>Loading notifications…</p>
+                ) : notifications.error ? (
+                  <div role="alert">
+                    <p>{notifications.error}</p>
                     <button
-                      className={`notification ${n.read ? '' : 'unread'}`}
-                      key={n.id}
-                      onClick={async () => {
-                        try {
-                          await api.readNotifications(n.id)
-                          go(`/${n.page}`)
-                        } catch (e) {
-                          toast(message(e), true)
-                        }
+                      className="text-btn"
+                      onClick={() => {
+                        setNoticePage(1)
+                        notifications.reload()
                       }}
                     >
-                      <span className="notification-icon">
-                        <Activity size={17} />
-                      </span>
-                      <span>
-                        <strong>{n.title}</strong>
-                        <p>{n.body}</p>
-                        <small>{dateTime(n.at)}</small>
-                      </span>
-                      {!n.read && <i />}
+                      Try again
                     </button>
-                  ))
+                  </div>
+                ) : !notifications.data?.items.length ? (
+                  <p>You’re all caught up.</p>
+                ) : (
+                  <div className="notification-items">
+                    {notifications.data.items.map((n) => (
+                      <button
+                        className={`notification ${n.read ? '' : 'unread'}`}
+                        key={n.id}
+                        onClick={async () => {
+                          try {
+                            await api.readNotifications(n.id)
+                            setNoticePage(1)
+                            go(`/${n.page}`)
+                          } catch (e) {
+                            toast(message(e), true)
+                          }
+                        }}
+                      >
+                        <span className="notification-icon">
+                          <Activity size={17} />
+                        </span>
+                        <span>
+                          <strong>{n.title}</strong>
+                          <p>{n.body}</p>
+                          <small>{dateTime(n.at)}</small>
+                        </span>
+                        {!n.read && <i />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {notifications.data && !notifications.error && (
+                  <div className="notification-pager">
+                    <select
+                      aria-label="Notification page size"
+                      value={noticeSize}
+                      onChange={(e) => {
+                        setNoticeSize(Number(e.target.value))
+                        setNoticePage(1)
+                      }}
+                    >
+                      {[10, 20, 50].map((n) => (
+                        <option key={n} value={n}>
+                          {n} rows
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="text-btn"
+                      aria-label="Previous notification page"
+                      disabled={notifications.loading || noticePage <= 1}
+                      onClick={() => setNoticePage((n) => n - 1)}
+                    >
+                      Previous
+                    </button>
+                    <span>
+                      {noticePage}/{Math.max(1, Math.ceil(notifications.data.total / noticeSize))}
+                    </span>
+                    <button
+                      className="text-btn"
+                      aria-label="Next notification page"
+                      disabled={
+                        notifications.loading || noticePage * noticeSize >= notifications.data.total
+                      }
+                      onClick={() => setNoticePage((n) => n + 1)}
+                    >
+                      Next
+                    </button>
+                  </div>
                 )}
               </div>
             )}
@@ -612,8 +719,8 @@ function AdminWorkspace({
               historical data coverage shown on each page.
             </p>
             <p>
-              Notifications, search, audit browsing and export will be connected in the next step.
-              They currently report unavailable.
+              Search, notifications, audit browsing and filtered CSV reports use authorized backend
+              APIs. They currently report unavailable.
             </p>
             <p>
               New accounts receive a Firebase password setup email. Check the invitation status
@@ -825,7 +932,16 @@ function ResetDialog({ api, onClose }: { api: AdminService; onClose: () => void 
   )
 }
 function AuditDialog({ api, onClose }: { api: AdminService; onClose: () => void }) {
-  const audit = useResource(() => api.audit())
+  const [page, setPage] = useState(1),
+    [size, setSize] = useState(10),
+    [q, setQ] = useState(''),
+    [result, setResult] = useState(''),
+    [range, setRange] = useState(defaultRange)
+  const search = useDebounced(q)
+  const audit = useResource(
+    () => api.audit({ page, pageSize: size, q: search, result, range }),
+    [page, size, search, result, range.from, range.to],
+  )
   return (
     <Modal
       title="Admin activity log"
@@ -838,16 +954,56 @@ function AuditDialog({ api, onClose }: { api: AdminService; onClose: () => void 
       wide
     >
       <div className="modal-body">
-        {audit.error ? (
-          <p role="alert">{audit.error}</p>
-        ) : !audit.data?.length ? (
+        <div className="audit-filters">
+          <SearchInput
+            value={q}
+            onChange={(v) => {
+              setQ(v)
+              setPage(1)
+            }}
+            placeholder="Search actor, action, target or reason…"
+          />
+          <select
+            aria-label="Audit result"
+            value={result}
+            onChange={(e) => {
+              setResult(e.target.value)
+              setPage(1)
+            }}
+          >
+            <option value="">All results</option>
+            {['succeeded', 'failed', 'blocked'].map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+          <RangePicker
+            range={range}
+            onChange={(v) => {
+              setRange(v)
+              setPage(1)
+            }}
+          />
+        </div>
+        {audit.loading ? (
+          <Loading />
+        ) : audit.error ? (
+          <ErrorState
+            error={audit.error}
+            retry={() => {
+              setPage(1)
+              audit.reload()
+            }}
+          />
+        ) : !audit.data?.items.length ? (
           <Empty
             title="No admin changes yet"
             description="Save a user or question to see the action recorded here."
           />
         ) : (
           <ol className="timeline">
-            {audit.data.map((a) => (
+            {audit.data.items.map((a) => (
               <li key={a.id}>
                 <span className="timeline-dot" />
                 <div>
@@ -857,10 +1013,28 @@ function AuditDialog({ api, onClose }: { api: AdminService; onClose: () => void 
                     {a.reason ? ` · ${a.reason}` : ''}
                   </p>
                   <small>{dateTime(a.at)}</small>
+                  {a.result && (
+                    <p>
+                      {a.result}
+                      {a.errorCode ? ` · ${a.errorCode}` : ''}
+                    </p>
+                  )}
+                  {a.operationId && <code>{a.operationId}</code>}
                 </div>
               </li>
             ))}
           </ol>
+        )}
+        {audit.data && !audit.error && (
+          <Pagination
+            page={audit.data}
+            onPage={setPage}
+            onSize={(n) => {
+              setSize(n)
+              setPage(1)
+            }}
+            label="audit entries"
+          />
         )}
       </div>
     </Modal>

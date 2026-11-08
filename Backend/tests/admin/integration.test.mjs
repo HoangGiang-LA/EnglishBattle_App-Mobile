@@ -80,19 +80,15 @@ beforeEach(async () => {
     'adminRoleOperations', 'adminMembership'].map(path => [path, null])))
 })
 
-test('all 21 callables reject anonymous/ordinary users; remaining business APIs explicitly report unimplemented', async () => {
+test('all 21 implemented callables reject anonymous/ordinary users before business effects', async () => {
   const regular = await account(false)
   const admin = await account()
   assert.deepEqual(Object.keys(callables).sort(), [...adminActions].sort())
   for (const name of adminActions) {
     await assert.rejects(invoke(name, undefined), {code: 'unauthenticated'}, name)
     await assert.rejects(invoke(name, regular), {code: 'permission-denied'}, name)
-    if (!['adminGetProfile', 'adminUpdateProfile', 'adminListUsers', 'adminGetUser', 'adminSaveUser', 'adminSetUserStatus',
-      'adminGetCatalog', 'adminSaveContent', 'adminListQuestions', 'adminGetQuestion', 'adminSaveQuestion', 'adminArchiveQuestion',
-      'adminListBattles', 'adminGetBattle', 'adminListActivities', 'adminGetOverview'].includes(name)) {
-      await assert.rejects(invoke(name, admin), {code: 'unimplemented'}, name)
-    }
   }
+  assert.ok((await invoke('adminGetProfile', admin)).profile.id)
   assert.equal(await read('adminOperations'), null)
   assert.equal(await read('adminAudit'), null)
 })
@@ -129,6 +125,7 @@ test('revocation is checked against live Auth; forged callable identity or absen
 })
 test('real callable HTTP transport checks read/write/export requests without leaking stack or secrets', async () => {
   const user = await account()
+  await require('./lib/admin/userIndex.js').runUserIndexMaintenance()
   for (const name of ['adminGetProfile', 'adminSaveUser', 'adminExportReport']) {
     const url = `http://127.0.0.1:15003/demo-englishbattle-admin/asia-southeast1/${name}`
     for (const signedIn of [false, true]) {
@@ -136,7 +133,7 @@ test('real callable HTTP transport checks read/write/export requests without lea
         headers: {'Content-Type': 'application/json', ...(signedIn ? {Authorization: `Bearer ${user.token}`} : {})},
         body: JSON.stringify({data: requests[name]}),
       })
-      assert.equal(response.status, signedIn ? name === 'adminExportReport' ? 501 : 200 : 401)
+      assert.equal(response.status, signedIn ? 200 : 401)
       const body = await response.json()
       if (!response.ok) assert.equal(body.error.status, signedIn ? 'UNIMPLEMENTED' : 'UNAUTHENTICATED')
       assert.ok(!JSON.stringify(body).includes(user.token))
