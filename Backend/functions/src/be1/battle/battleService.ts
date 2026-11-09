@@ -12,6 +12,7 @@ import {BattleMatch, RECONNECT_MS} from "./battleTypes";
 import {enqueueBattleWork} from "./battleWork";
 import {settleBattle} from "./battleSettlement";
 import {visibleOpponentName} from "../auth/userPrivacy";
+import {battleNow, syncBattleClock} from "./battleClock";
 
 const unavailablePlayers = async (match: BattleMatch) => {
   const unavailable: string[] = [];
@@ -81,7 +82,7 @@ export async function battleResponse(
       correct: result ? answer.isCorrect : null,
     }));
   return {
-    serverNow: Date.now(),
+    serverNow: battleNow(),
     attempt: {
       id: match.id,
       mode: "BATTLE",
@@ -113,6 +114,7 @@ export async function transactBattle(
   matchId: string,
   member?: {uid: string; sessionId: string; action: BattleAction},
 ): Promise<{match: BattleMatch; accepted: boolean}> {
+  await syncBattleClock();
   const ref = adminDb.ref(`battleRooms/${matchId}`);
   const loaded = (await ref.get()).val() as BattleMatch | null;
   if (!loaded || (member && !loaded.players[member.uid])) {
@@ -147,12 +149,12 @@ export async function transactBattle(
       throw new HttpsError("invalid-argument", "Invalid option.");
     }
   }
-  await enqueueBattleWork(matchId, battleDueAt(loaded));
+  await enqueueBattleWork(matchId, battleDueAt(loaded, battleNow()));
   const unavailable =
     loaded.status === "completed" ? [] : await unavailablePlayers(loaded);
   const reduce = (stored: BattleMatch) => {
     const next = structuredClone(stored);
-    const now = Date.now();
+    const now = battleNow();
     resolveUnavailablePlayers(next, unavailable, now);
     if (member) {
       applyBattleAction(
@@ -186,7 +188,7 @@ export async function transactBattle(
   if (match.status === "completed") {
     await settleBattle(matchId);
     match.settlementVersion = 1;
-  } else await enqueueBattleWork(matchId, battleDueAt(match));
+  } else await enqueueBattleWork(matchId, battleDueAt(match, battleNow()));
   const ordinal = member?.action.questionId ?
     match.questions.findIndex((q) => q.id === member.action.questionId) :
     -1;

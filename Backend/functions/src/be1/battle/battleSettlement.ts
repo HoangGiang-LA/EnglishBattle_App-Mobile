@@ -8,6 +8,7 @@ import {releaseBattle} from "./matchmaking";
 import {transactionWithRetry} from "../databaseTransaction";
 import {syncLeaderboardPlayer} from "../community/leaderboardProjection";
 import {projectActivity} from "../reporting/activity";
+import {battleNow} from "./battleClock";
 import {battleStudyTiming} from "../reporting/duration";
 import {HistoryEntry} from "../reporting/history";
 import {
@@ -274,7 +275,7 @@ export async function settleBattle(
     await releaseBattle(match);
     return;
   }
-  const wake = await enqueueBattleWork(matchId, Date.now());
+  const wake = await enqueueBattleWork(matchId);
   const updates: Record<string, unknown> = {};
   const playerResults: Record<string, unknown> = {};
   for (const uid of Object.keys(match.players)) {
@@ -303,7 +304,7 @@ export async function settleBattle(
   updates[`battleLogs/${matchId}`] = match.events || {};
   updates[`battleRooms/${matchId}/settlementVersion`] = 1;
   updates[`battleRooms/${matchId}/battleEffectsVersion`] = 1;
-  updates[`battleRooms/${matchId}/settlementCompletedAt`] = Date.now();
+  updates[`battleRooms/${matchId}/settlementCompletedAt`] = battleNow();
   await adminDb.ref().update(updates);
   await transactionWithRetry(adminDb.ref(`battleWork/${matchId}`), (job) => {
     if (!job) return job;

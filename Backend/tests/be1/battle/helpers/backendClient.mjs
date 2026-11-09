@@ -2,9 +2,10 @@ import {fork} from 'node:child_process';
 import {once} from 'node:events';
 import {fileURLToPath} from 'node:url';
 
-export async function startBackend() {
+export async function startBackend({clockSkewMs = 0} = {}) {
   const child = fork(fileURLToPath(new URL('./backendActor.mjs', import.meta.url)), [],
-    {env: {...process.env}, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc']});
+    {env: {...process.env, BATTLE_TEST_CLOCK_SKEW_MS: String(clockSkewMs)},
+      windowsHide: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc']});
   let output = '';
   for (const stream of [child.stdout, child.stderr]) stream.on('data', chunk => { output = (output + chunk).slice(-8000); });
   const pending = new Map();

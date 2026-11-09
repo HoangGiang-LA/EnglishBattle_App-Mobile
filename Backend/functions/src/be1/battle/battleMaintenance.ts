@@ -7,16 +7,18 @@ import {enqueueBattleWork} from "./battleWork";
 import {transactBattle} from "./battleService";
 import {settleBattle} from "./battleSettlement";
 import {flushBattleCoordinator, releaseBattle} from "./matchmaking";
+import {battleNow, syncBattleClock} from "./battleClock";
 
 const discover = async () => {
   const ref = adminDb.ref("battleMaintenance/discovery");
   const owner = randomUUID();
   const claim = await ref.transaction(
     (cursor) => {
-      if (cursor?.leaseUntil > Date.now() || cursor?.nextRunAt > Date.now()) {
+      const now = battleNow();
+      if (cursor?.leaseUntil > now || cursor?.nextRunAt > now) {
         return;
       }
-      return {...cursor, owner, leaseUntil: Date.now() + 90000};
+      return {...cursor, owner, leaseUntil: now + 90000};
     },
     undefined,
     false,
@@ -44,15 +46,15 @@ const discover = async () => {
       if (match.status === "completed" && match.settlementVersion === 1 &&
           match.battleEffectsVersion === 1) {
         await releaseBattle(match);
-      } else await enqueueBattleWork(id, battleDueAt(match), true);
+      } else await enqueueBattleWork(id, battleDueAt(match, battleNow()), true);
     }
     await ref.transaction(
       (current) => {
         if (!current) return current;
         if (current.owner !== owner) return;
         return remaining.length > 25 ?
-          {after: page[page.length - 1], nextRunAt: Date.now() + 1000} :
-          {nextRunAt: Date.now() + 60000};
+          {after: page[page.length - 1], nextRunAt: battleNow() + 1000} :
+          {nextRunAt: battleNow() + 60000};
       },
       undefined,
       false,
@@ -66,7 +68,7 @@ const discover = async () => {
           ...current,
           owner: null,
           leaseUntil: null,
-          nextRunAt: Date.now() + 10000,
+          nextRunAt: battleNow() + 10000,
         };
       },
       undefined,
@@ -81,10 +83,11 @@ const discover = async () => {
  * @return {Promise<void>} Completion.
  */
 export async function drainBattleWork(): Promise<void> {
+  await syncBattleClock();
   const due = await adminDb
     .ref("battleWork")
     .orderByChild("dueAt")
-    .endAt(Date.now())
+    .endAt(battleNow())
     .limitToFirst(25)
     .get();
   const ids: string[] = [];
@@ -98,12 +101,13 @@ export async function drainBattleWork(): Promise<void> {
       const claim = await ref.transaction(
         (job) => {
           if (!job) return job;
-          if (job.dueAt > Date.now() || job.leaseUntil > Date.now()) return;
+          const now = battleNow();
+          if (job.dueAt > now || job.leaseUntil > now) return;
           return {
             ...job,
             leaseOwner: owner,
-            leaseUntil: Date.now() + 90000,
-            dueAt: Date.now() + 90000,
+            leaseUntil: now + 90000,
+            dueAt: now + 90000,
             wakeAt: null,
           };
         },
@@ -119,7 +123,8 @@ export async function drainBattleWork(): Promise<void> {
         await settleBattle(id, true);
       } else if (stored) match = (await transactBattle(id)).match;
       const next =
-        !match || match.status === "completed" ? null : battleDueAt(match);
+        !match || match.status === "completed" ?
+          null : battleDueAt(match, battleNow());
       await ref.transaction(
         (current) => {
           if (!current) return current;
@@ -128,7 +133,7 @@ export async function drainBattleWork(): Promise<void> {
           if (next === null) {
             return {
               matchId: id, generation: current.generation,
-              revision: current.revision, dueAt: Date.now(),
+              revision: current.revision, dueAt: battleNow(),
               refreshEffects: current.refreshEffects || null,
             };
           }
@@ -165,7 +170,7 @@ export async function drainBattleWork(): Promise<void> {
               retryCount,
               lastErrorCode: code,
               dueAt:
-                Date.now() +
+                battleNow() +
                 Math.min(60000, 1000 * 2 ** Math.min(retryCount - 1, 6)),
             };
           },
@@ -182,6 +187,7 @@ export async function drainBattleWork(): Promise<void> {
 
 /** Recover matchmaking outboxes and every due match without an open app. */
 export async function runBattleMaintenance(): Promise<void> {
+  await syncBattleClock();
   try {
     await flushBattleCoordinator();
     await discover();

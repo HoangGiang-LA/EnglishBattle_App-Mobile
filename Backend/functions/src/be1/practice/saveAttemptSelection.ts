@@ -5,6 +5,7 @@ import {contentId} from "./contentValidation";
 import {saveLearningSelection} from "./attemptState";
 import {battleId, battleSession} from "../battle/battleAccess";
 import {transactBattle} from "../battle/battleService";
+import {battleNow} from "../battle/battleClock";
 
 export const saveAttemptSelection = onCall(
   {region: "asia-southeast1", maxInstances: 10},
@@ -27,7 +28,7 @@ export const saveAttemptSelection = onCall(
       const {accepted} = await transactBattle(attemptId, {uid,
         sessionId: battleSession(request.data?.clientSessionId),
         action: {type: "select", questionId, optionId, requestId}});
-      return {serverNow: Date.now(), accepted};
+      return {serverNow: battleNow(), accepted};
     }
     const accepted = await saveLearningSelection(
       uid, attemptId, questionId, optionId, requestId,

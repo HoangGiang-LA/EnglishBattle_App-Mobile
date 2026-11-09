@@ -18,6 +18,7 @@ const Ajv = require('ajv');
 const ajv = new Ajv({strict: false});
 const test = (title, run) => nodeTest(title, {timeout: 30000}, run);
 const {findBattle, getBattleTicket, cancelBattleSearch} = require('./lib/be1/battle/battleCallables.js');
+const {battleNow, syncBattleClock} = require('./lib/be1/battle/battleClock.js');
 const {settleBattle} = require('./lib/be1/battle/battleSettlement.js');
 const {runBattleMaintenance, drainBattleWork} = require('./lib/be1/battle/battleMaintenance.js');
 const {flushBattleCoordinator} = require('./lib/be1/battle/matchmaking.js');
@@ -44,7 +45,10 @@ const submit = (user, id, q, right = true, requestId = randomUUID()) =>
   call(submitAttemptAnswer, user, {attemptId: id, questionId: q.id, optionId: option(q, right), requestId});
 const leave = (user, id) => call(leaveAttempt, user, {attemptId: id, requestId: randomUUID()});
 const clockAt = async (time, run) => {
+  await syncBattleClock();
   const clock = Date.now; Date.now = () => time;
+  const offset = battleNow() - time;
+  Date.now = () => time - offset;
   try { return await run(); } finally { Date.now = clock; }
 };
 
@@ -155,6 +159,50 @@ try {
     const retry = (await find(users[0])).ticket;
     assert.equal(retry.attemptId, opponent.attemptId);
     assert.equal(Object.keys(await read('battleRooms')).length, 1);
+  });
+
+  await test('Local hosts with clocks 40 seconds apart can enter and play past round one', async () => {
+    const [a, b] = await fresh();
+    const fast = await startBackend({clockSkewMs: 20000});
+    const slow = await startBackend({clockSkewMs: -20000});
+    try {
+      const search = (host, user) => host.call('findBattle', user, {kind: 'quick', requestId: randomUUID()});
+      const first = (await search(fast, a)).ticket;
+      const second = (await search(slow, b)).ticket;
+      assert.equal(first.status, 'searching');
+      assert.equal(second.status, 'matched');
+      const id = second.attemptId;
+      const roomPath = `battleRooms/${id}`;
+
+      await fast.call('maintenance');
+      const notification = await fast.call('getBattleTicket', a, {ticketId: first.id});
+      assert.equal(notification.ticket.attemptId, id);
+      assert.equal((await read(roomPath)).status, 'ready');
+      const enter = (host, user) => host.call('resumeAttempt', user, {attemptId: id});
+      assert.equal((await enter(slow, b)).attempt.status, 'waiting');
+      const start = await enter(fast, a);
+      assert.equal(start.attempt.status, 'active');
+      assert.ok(start.attempt.deadlineAt - start.serverNow > 25000);
+      const room = await read(roomPath);
+      assert.ok(room.players[b.uid].joinedAt >= room.createdAt);
+      assert.ok(Math.abs(room.players[a.uid].lastSeenAt - room.players[b.uid].lastSeenAt) < 5000);
+
+      const answer = (host, user, question) => host.call('submitAttemptAnswer', user, {
+        attemptId: id, questionId: question.id, optionId: option(question, true), requestId: randomUUID(),
+      });
+      for (let i = 0; i < 2; i++) {
+        const question = start.attempt.questions[i];
+        assert.equal((await answer(slow, b, question)).attempt.status, 'waiting');
+        const {attempt} = await answer(fast, a, question);
+        assert.equal(attempt.index, i + 1);
+        assert.equal(attempt.result, null);
+        await fast.call('maintenance');
+        assert.equal((await enter(slow, b)).attempt.index, i + 1);
+      }
+      assert.equal((await read(roomPath)).status, 'active');
+    } finally {
+      await Promise.all([fast.close(), slow.close()]);
+    }
   });
 
   await test('Searching ticket cancellation and expiry remain stable on old request retries', async () => {
@@ -494,7 +542,7 @@ try {
     const {id} = await pair(users);
     await freezeFixture(users, id);
     await adminDb.ref(`battleWork/${id}`).update({dueAt: 0,
-      leaseOwner: 'crashed-worker', leaseUntil: Date.now() - 1});
+      leaseOwner: 'crashed-worker', leaseUntil: battleNow() - 1});
     await runBattleMaintenance();
     await assertFinal(users, id, ['win', 'loss']);
     assert.equal(await read(`battleWork/${id}`), null);

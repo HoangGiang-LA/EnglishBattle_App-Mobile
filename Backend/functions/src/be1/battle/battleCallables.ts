@@ -2,6 +2,7 @@ import {enforceUserSession} from "../auth/userSession";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {adminDb} from "../../config/firebaseAdmin";
 import {activeBattleUser, battleSession, operationId} from "./battleAccess";
+import {battleNow, syncBattleClock} from "./battleClock";
 import {
   cancelQueuedBattle,
   findQuickBattle,
@@ -40,7 +41,7 @@ export const findBattle = onCall(options, async (request) => {
     });
   }
   const ticket = await findQuickBattle(uid!, name, sessionId, requestId);
-  return {serverNow: Date.now(), ticket};
+  return {serverNow: battleNow(), ticket};
 });
 
 export const getBattleTicket = onCall(options, async (request) => {
@@ -52,16 +53,21 @@ export const getBattleTicket = onCall(options, async (request) => {
     throw new HttpsError("invalid-argument", "Invalid ticketId.");
   }
   const sessionId = battleSession(clientSessionId);
-  await flushBattleCoordinator();
-  const ticket = await readBattleTicket(uid!, ticketId, sessionId);
+  await syncBattleClock();
+  let ticket = await readBattleTicket(uid!, ticketId, sessionId);
+  if (ticket.status === "searching" && ticket.expiresAt <= battleNow()) {
+    await flushBattleCoordinator();
+    ticket = await readBattleTicket(uid!, ticketId, sessionId);
+  }
   if (ticket.matchId) {
+    await flushBattleCoordinator();
     await transactBattle(ticket.matchId, {
       uid: uid!,
       sessionId,
       action: {type: "heartbeat"},
     });
   }
-  return {serverNow: Date.now(), ticket: wireTicket(ticket)};
+  return {serverNow: battleNow(), ticket: wireTicket(ticket)};
 });
 
 export const cancelBattleSearch = onCall(options, async (request) => {
@@ -79,5 +85,5 @@ export const cancelBattleSearch = onCall(options, async (request) => {
       type: "leave",
     });
   }
-  return {serverNow: Date.now()};
+  return {serverNow: battleNow()};
 });

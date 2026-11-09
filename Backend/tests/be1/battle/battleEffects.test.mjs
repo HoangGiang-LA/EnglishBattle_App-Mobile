@@ -381,7 +381,7 @@ try {
       try {
         await reached;
         if (replacement) await adminDb.ref(`battleWork/${id}`).remove();
-        wake = await enqueueBattleWork(id, Date.now(), false, true);
+        wake = await enqueueBattleWork(id, undefined, false, true);
       } finally { release(); try { await settling; } finally { adminDb.ref = original; } }
       const pending = await read(`battleWork/${id}`);
       assert.equal(pending.generation, wake.generation);

@@ -181,7 +181,7 @@ export async function refreshBattleAchievements(
     latest.attemptId, latest.settledAt);
   if (count(preview.battleAchievementRevision) <=
       count(stored.battleAchievementPublishedRevision)) return null;
-  await enqueueBattleWork(latest.attemptId, Date.now(), false, true);
+  await enqueueBattleWork(latest.attemptId, undefined, false, true);
   const tx = await transactionWithRetry(ref,
     (s: UserSettlementModel | null) => {
       if (!s?.battleStats) return s;

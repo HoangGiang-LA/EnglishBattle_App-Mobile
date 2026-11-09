@@ -12,6 +12,7 @@ import {
 } from "./battleTypes";
 import {battleDueAt} from "./battleState";
 import {enqueueBattleWork} from "./battleWork";
+import {battleNow, syncBattleClock} from "./battleClock";
 
 const ticketIdFor = (uid: string, requestId: string) =>
   "ticket_" +
@@ -47,13 +48,14 @@ const expireTickets = (state: BattleCoordinator, now: number) => {
  * @return {Promise<void>} Completion.
  */
 export async function flushBattleCoordinator(): Promise<void> {
+  await syncBattleClock();
   const ref = adminDb.ref("battleCoordinator");
   const before = await ref.get();
   if (!before.exists()) return;
   const sweep = await ref.transaction(
     (state: BattleCoordinator | null) => {
       if (!state) return state;
-      expireTickets(state, Date.now());
+      expireTickets(state, battleNow());
       return state;
     },
     undefined,
@@ -67,7 +69,7 @@ export async function flushBattleCoordinator(): Promise<void> {
         .ref(`battleRooms/${id}`)
         .transaction((current) => current || allocation, undefined, false);
       const match = created.snapshot.val() as BattleMatch;
-      await enqueueBattleWork(id, battleDueAt(match), true);
+      await enqueueBattleWork(id, battleDueAt(match, battleNow()), true);
       for (const uid of Object.keys(match.players)) {
         if (match.status === "completed") continue;
         await adminDb.ref(`activeBattles/${uid}`).transaction(
@@ -93,7 +95,7 @@ export async function flushBattleCoordinator(): Promise<void> {
           if (!current.allocations?.[id]) return;
           delete current.allocations[id];
           for (const ticket of Object.values(current.tickets || {})) {
-            if (ticket.matchId === id) ticket.publishedAt ||= Date.now();
+            if (ticket.matchId === id) ticket.publishedAt ||= battleNow();
           }
           return current;
         },
@@ -115,7 +117,7 @@ export async function flushBattleCoordinator(): Promise<void> {
       (current: BattleCoordinator | null) => {
         if (!current) return current;
         if (current.tickets?.[ticket.id]?.status !== ticket.status) return;
-        current.tickets[ticket.id].publishedAt ||= Date.now();
+        current.tickets[ticket.id].publishedAt ||= battleNow();
         return current;
       },
       undefined,
@@ -167,7 +169,8 @@ export async function findQuickBattle(
   sessionId: string,
   requestId: string,
 ): Promise<WireTicket> {
-  const requestStartedAt = Date.now();
+  await syncBattleClock();
+  const requestStartedAt = battleNow();
   const ticketId = ticketIdFor(uid, requestId);
   const saved = (
     await adminDb.ref(`battleTickets/${uid}/${ticketId}`).get()
@@ -208,17 +211,17 @@ export async function findQuickBattle(
       explanation: answer.explanation,
     };
   }
-  const now = Date.now();
   const matchId = `battle_${randomUUID()}`;
   const tx = await adminDb.ref("battleCoordinator").transaction(
     (current: BattleCoordinator | null) => {
-      if (Date.now() - requestStartedAt >= 60000) {
+      const now = battleNow();
+      if (now - requestStartedAt >= 60000) {
         return;
       }
       const state = current || {};
       state.tickets ||= {};
       state.users ||= {};
-      expireTickets(state, Date.now());
+      expireTickets(state, now);
       if (state.users[uid] || state.tickets[ticketId]) return state;
       const ticket: BattleTicket = {
         id: ticketId,
@@ -236,7 +239,7 @@ export async function findQuickBattle(
           (t) =>
             t.uid !== uid &&
             t.status === "searching" &&
-            t.expiresAt > Date.now() &&
+            t.expiresAt > now &&
             state.users?.[t.uid]?.ticketId === t.id,
         )
         .sort(
@@ -248,7 +251,7 @@ export async function findQuickBattle(
       ticket.opponentName = peer.name;
       peer.opponentName = name;
       state.users[uid].matchId = state.users[peer.uid].matchId = matchId;
-      const createdAt = Date.now();
+      const createdAt = now;
       const match: BattleMatch = {
         id: matchId,
         kind: "quick",
@@ -299,11 +302,12 @@ export async function cancelQueuedBattle(
   ticketId: string,
   sessionId: string,
 ): Promise<BattleTicket> {
+  await syncBattleClock();
   await readBattleTicket(uid, ticketId, sessionId);
   await adminDb.ref("battleCoordinator").transaction(
     (state: BattleCoordinator | null) => {
       if (!state) return state;
-      expireTickets(state, Date.now());
+      expireTickets(state, battleNow());
       const ticket = state.tickets?.[ticketId];
       if (ticket?.uid !== uid || ticket.status !== "searching") return state;
       ticket.status = "cancelled";

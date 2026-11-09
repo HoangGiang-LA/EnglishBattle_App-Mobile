@@ -213,7 +213,7 @@ export function applyBattleAction(
     return false;
   }
   if (match.leaveDeadlineAt) return false;
-  player.lastSeenAt = now;
+  player.lastSeenAt = Math.max(player.lastSeenAt, now);
   if (action.type === "resume" && !player.joinedAt) {
     player.joinedAt = now;
     event(match, "joined", now, uid);
@@ -313,10 +313,11 @@ export function resolveUnavailablePlayers(
 /**
  * Earliest server deadline needing background reconciliation.
  * @param {BattleMatch} match Canonical match.
+ * @param {number} now Authoritative server time.
  * @return {number} Next work time.
  */
-export function battleDueAt(match: BattleMatch): number {
-  if (match.status === "completed") return Date.now();
+export function battleDueAt(match: BattleMatch, now: number): number {
+  if (match.status === "completed") return now;
   if (match.leaveDeadlineAt) return match.leaveDeadlineAt;
   return Math.min(
     match.status === "ready" ? match.readyDeadlineAt : match.deadlineAt,

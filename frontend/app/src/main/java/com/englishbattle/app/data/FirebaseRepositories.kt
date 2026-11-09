@@ -95,8 +95,14 @@ class FirebaseCatalogRepository(private val db: FirebaseDatabase) : CatalogRepos
 
 class ServerClock {
     private var offset = 0L
+    private var battleOffset: Long? = null
     fun synchronize(serverNow: Long, sentAt: Long, receivedAt: Long) { offset = serverNow - (sentAt + (receivedAt - sentAt) / 2) }
-    fun now() = System.currentTimeMillis() + offset
+    // Battle responses use database time even when a local Functions host has a skewed clock.
+    fun synchronizeBattle(serverNow: Long) { battleOffset = serverNow - System.nanoTime() / 1_000_000L }
+    fun now(battle: Boolean = false): Long {
+        if (battle) battleOffset?.let { return it + System.nanoTime() / 1_000_000L }
+        return System.currentTimeMillis() + offset
+    }
 }
 
 class FirebaseGameRepository(private val clock: ServerClock,
@@ -133,7 +139,13 @@ class FirebaseGameRepository(private val clock: ServerClock,
         val raw = response as? Map<*, *>
             ?: throw UserFacingException("Dịch vụ trả về dữ liệu không hợp lệ. Vui lòng thử lại.")
         val json = JSONObject(raw)
-        if (json.has("serverNow")) clock.synchronize(json.getLong("serverNow"), sentAt, System.currentTimeMillis())
+        if (json.has("serverNow")) {
+            val serverNow = json.getLong("serverNow")
+            val battle = name in setOf("findBattle", "getBattleTicket", "cancelBattleSearch") ||
+                (data["attemptId"] as? String)?.startsWith("battle_") == true
+            if (battle) clock.synchronizeBattle(serverNow)
+            else clock.synchronize(serverNow, sentAt, System.currentTimeMillis())
+        }
         json
     }
     private suspend fun attempt(response: JSONObject): AttemptState = completeWaitingAttempt(

@@ -217,7 +217,7 @@ class PlayViewModel(app: Application, private val repository: GameRepository) : 
     val activeId get() = prefs.getString("active-$key", null)
     val hasPendingStart get() = prefs.contains("start-mode-$key")
     val hasPendingMatch get() = prefs.contains("ticket-$key") || prefs.contains("find-kind-$key")
-    fun now() = container.clock.now()
+    fun now() = container.clock.now(battle = _attempt.value.data?.mode == QuizMode.BATTLE)
     fun connect(uid: String) {
         clear(); key = "FIREBASE-$uid"
         scope = CoroutineScope(viewModelScope.coroutineContext + SupervisorJob(viewModelScope.coroutineContext[Job]))
@@ -382,9 +382,10 @@ class PlayViewModel(app: Application, private val repository: GameRepository) : 
         val matching = _ticket.value.data?.status in listOf("searching", "waiting")
         val playing = _attempt.value.data?.status in listOf("active", "waiting")
         if (!matching && !playing) return
+        val interval = if (matching) 1000L else 3000L
         poll = scope.launch {
             while (isActive) {
-                delay(3000)
+                delay(interval)
                 if (_busy.value) continue
                 try {
                     gate.withLock {
@@ -401,7 +402,11 @@ class PlayViewModel(app: Application, private val repository: GameRepository) : 
                     }
                     if (matching && _ticket.value.data?.status !in listOf("searching", "waiting")) break
                     if (!matching && _attempt.value.data?.result != null) break
-                } catch (e: Exception) { _error.value = friendlyError(e); delay(7000) }
+                } catch (e: Exception) {
+                    currentCoroutineContext().ensureActive()
+                    _error.value = friendlyError(e)
+                    delay(if (matching) 1000L else 7000L)
+                }
             }
         }
     }
