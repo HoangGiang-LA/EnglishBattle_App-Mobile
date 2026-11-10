@@ -8,8 +8,8 @@ const q = {id: 'q1', version: 'v1', categoryId: 'vocabulary', topicId: 'vocabula
 const a = {id: 'attempt-1', mode: 'PRACTICE', questions: Array.from({length: 10}, (_, i) => ({...q, id: `q${i + 1}`})), index: 0, deadlineAt: 1792850000000, receipts: [], status: 'active'};
 const result = {attemptId: a.id, mode: 'PRACTICE', correct: 1, total: 10, coins: 1, outcome: 'completed', reviews: []};
 test('project configuration, seed business rules and source adapters match the contracts', () => assert.equal(checkPreparation().status, 'PASS'));
-test('all eighteen callable request and response schemas compile', () => {
-  assert.equal(Object.keys(mobileContract.methods).length, 18);
+test('all mobile callable request and response schemas compile', () => {
+  assert.equal(Object.keys(mobileContract.methods).length, 19);
   for (const contract of Object.values(mobileContract.methods)) { ajv.compile(contract.request); ajv.compile(contract.response); }
 });
 test('live question envelopes reject correct answers, explanations and client-authoritative fields', () => {

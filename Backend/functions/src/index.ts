@@ -41,6 +41,7 @@ export {getStudyStatistics} from "./be1/reporting/getStudyStatistics";
 export {getHistory} from "./be1/reporting/getHistory";
 export {getCoinLedger} from "./be1/reporting/getCoinLedger";
 export {maintainReporting} from "./be1/reporting/maintenance";
+export {learningAttempt} from "./be1/practice/learningAttempt";
 export {startAttempt} from "./be1/practice/startAttempt";
 export {resumeAttempt} from "./be1/practice/resumeAttempt";
 export {submitAttemptAnswer} from "./be1/practice/submitAttemptAnswer";

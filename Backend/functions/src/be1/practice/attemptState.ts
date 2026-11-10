@@ -123,6 +123,7 @@ export async function projectAttemptState(
  * @param {string} questionId Current question.
  * @param {string} optionId Selected option.
  * @param {string} requestId Idempotency key.
+ * @param {number} receivedAt Server time at callable entry.
  * @return {Promise<boolean>} Whether the selection was accepted.
  */
 export async function saveLearningSelection(
@@ -131,6 +132,7 @@ export async function saveLearningSelection(
   questionId: string,
   optionId: string,
   requestId: string,
+  receivedAt = Date.now(),
 ): Promise<boolean> {
   const loaded = await context(uid, attemptId);
   const entry = Object.entries(loaded.questions).find(
@@ -140,7 +142,7 @@ export async function saveLearningSelection(
     throw new HttpsError("invalid-argument", "Invalid question or option.");
   }
   const ordinal = Number(entry[0]);
-  await enqueueLearningWork(uid, attemptId, loaded.attempt.deadlineAt);
+  await enqueueLearningWork(uid, attemptId, loaded.attempt.deadlineAt, true);
   const tx = await transactionWithRetry(
     adminDb.ref(`practiceAttempts/${uid}/${attemptId}`),
     (attempt: StoredAttempt | null) => {
@@ -153,8 +155,7 @@ export async function saveLearningSelection(
         return;
       }
       const answers = initializeAttemptAnswers(attempt, loaded.answers);
-      const now = Date.now();
-      if (answers[ordinal] || now >= attempt.deadlineAt) return;
+      if (answers[ordinal] || receivedAt >= attempt.deadlineAt) return;
       attempt.selections ||= {};
       const previous = attempt.selections[ordinal];
       if (previous?.requestId === requestId) {
@@ -166,10 +167,11 @@ export async function saveLearningSelection(
         }
         return attempt;
       }
+      if (previous && previous.selectedAt > receivedAt) return;
       attempt.selections[ordinal] = {
         optionId,
         requestId,
-        selectedAt: now,
+        selectedAt: receivedAt,
       };
       return attempt;
     },
@@ -237,6 +239,7 @@ function timeoutAnswer(
  * @param {string} questionId Question.
  * @param {string|null} optionId Confirmed choice or timeout request.
  * @param {string} requestId Idempotency key.
+ * @param {number} receivedAt Server time at callable entry.
  */
 export async function submitLearningAnswer(
   uid: string,
@@ -244,7 +247,8 @@ export async function submitLearningAnswer(
   questionId: string,
   optionId: string | null,
   requestId: string,
-): Promise<StoredAttempt> {
+  receivedAt = Date.now(),
+) {
   const loaded = await context(uid, attemptId);
   const entry = Object.entries(loaded.questions).find(
     ([, question]) => question.questionId === questionId,
@@ -257,8 +261,10 @@ export async function submitLearningAnswer(
   if (optionId !== null && !question.options.some((o) => o.id === optionId)) {
     throw new HttpsError("invalid-argument", "Invalid optionId.");
   }
-  const correctId = await correctOption(question);
-  await enqueueLearningWork(uid, attemptId, loaded.attempt.deadlineAt);
+  const [correctId] = await Promise.all([
+    correctOption(question),
+    enqueueLearningWork(uid, attemptId, loaded.attempt.deadlineAt, true),
+  ]);
   const tx = await transactionWithRetry(
     adminDb.ref(`practiceAttempts/${uid}/${attemptId}`),
     (attempt: StoredAttempt | null) => {
@@ -276,8 +282,9 @@ export async function submitLearningAnswer(
       const deadline =
           Number(attempt.deadlineAt) || question.deadlineAt || 0;
       if (deadline <= 0 || (optionId === null && now < deadline)) return;
+      const timedOut = optionId === null || receivedAt >= deadline;
       answers[ordinal] =
-          now >= deadline ?
+          timedOut ?
             timeoutAnswer(attempt, question, correctId) :
             {
               questionId,
@@ -286,7 +293,7 @@ export async function submitLearningAnswer(
               timedOut: false,
               ordinal,
               requestId,
-              receivedAt: now,
+              receivedAt,
             };
       updateAttemptCounts(attempt);
       // The final confirmed answer completes the session even when the app
@@ -335,7 +342,7 @@ export async function submitLearningAnswer(
   if (attempt.status === "waiting") {
     await enqueueLearningWork(uid, attemptId, Date.now());
   }
-  return attempt;
+  return {attempt, questions: loaded.questions};
 }
 
 /**
@@ -352,14 +359,16 @@ export async function advanceLearningAttempt(
   requestId: string,
   expectedIndex?: number,
   background = false,
-): Promise<StoredAttempt> {
+) {
   const loaded = await context(uid, attemptId);
   const loadedIndex = loaded.attempt.currentIndex;
   const currentQuestion = loaded.questions[loadedIndex];
-  const correctId = currentQuestion ?
-    await correctOption(currentQuestion) :
-    "";
-  await enqueueLearningWork(uid, attemptId, loaded.attempt.deadlineAt);
+  const resolved = loaded.attempt.answerStateVersion === 1 &&
+    loaded.attempt.answers?.[loadedIndex];
+  const [correctId] = await Promise.all([
+    currentQuestion && !resolved ? correctOption(currentQuestion) : "",
+    enqueueLearningWork(uid, attemptId, loaded.attempt.deadlineAt, true),
+  ]);
   const tx = await transactionWithRetry(
     adminDb.ref(`practiceAttempts/${uid}/${attemptId}`),
     (attempt: StoredAttempt | null) => {
@@ -368,7 +377,8 @@ export async function advanceLearningAttempt(
         attempt.status !== "active" ||
           isDailyExpired(attempt) ||
           attempt.advanceOperations?.[requestId] ||
-          attempt.currentIndex !== (expectedIndex ?? loadedIndex)
+          attempt.currentIndex !== loadedIndex ||
+          (expectedIndex !== undefined && loadedIndex !== expectedIndex)
       ) {
         return;
       }
@@ -386,7 +396,7 @@ export async function advanceLearningAttempt(
       const now = Date.now();
       const answers = initializeAttemptAnswers(attempt, loaded.answers);
       if ((background || !answers[index]) && now < deadline) return;
-      const deadlineTransition = background || now >= deadline;
+      const deadlineTransition = background || !answers[index];
       answers[index] ||= timeoutAnswer(attempt, question, correctId);
       updateAttemptCounts(attempt);
       const nextIndex = index + 1;
@@ -437,5 +447,5 @@ export async function advanceLearningAttempt(
   if (attempt.status === "waiting") {
     await enqueueLearningWork(uid, attemptId, Date.now());
   }
-  return attempt;
+  return {attempt, questions: loaded.questions};
 }

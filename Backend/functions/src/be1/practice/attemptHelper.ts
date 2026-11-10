@@ -215,21 +215,27 @@ export async function buildAttemptReviews(
  * @param {string} uid Owner of the attempt.
  * @param {string} attemptId Attempt to read.
  * @param {object} attemptData Current attempt state.
+ * @param {object} storedQuestions Immutable question snapshot, if already read.
  * @return {Promise<object>} Attempt response with the current server time.
  */
 export async function buildAttemptResponse(
   uid: string,
   attemptId: string,
   attemptData: Record<string, unknown>,
+  storedQuestions?: Record<string, Record<string, unknown>>,
 ): Promise<{serverNow: number; attempt: WireAttempt}> {
-  // Load stored questions
-  const qSnap = await adminDb.ref(`attemptQuestions/${uid}/${attemptId}`).get();
+  const [questionSnapshot, legacyAnswers] = await Promise.all([
+    storedQuestions ? null :
+      adminDb.ref(`attemptQuestions/${uid}/${attemptId}`).get(),
+    attemptData.answerStateVersion === 1 ? null :
+      adminDb.ref(`attemptAnswers/${uid}/${attemptId}`).get(),
+  ]);
+  const questionData: Record<string, Record<string, unknown>> | null =
+    storedQuestions ?? questionSnapshot?.val() ?? null;
 
   const questions: WireQuestion[] = [];
-  if (qSnap.exists()) {
-    const qData = qSnap.val() as Record<string, Record<string, unknown>>;
-
-    const sorted = Object.values(qData).sort(
+  if (questionData) {
+    const sorted = Object.values(questionData).sort(
       (a, b) => ((a.ordinal as number) ?? 0) - ((b.ordinal as number) ?? 0),
     );
 
@@ -254,7 +260,7 @@ export async function buildAttemptResponse(
   // Load answers/receipts
   const answers = attemptData.answerStateVersion === 1 ?
     attemptData.answers || {} :
-    (await adminDb.ref(`attemptAnswers/${uid}/${attemptId}`).get()).val() || {};
+    legacyAnswers?.val() || {};
 
   const receipts: WireReceipt[] = [];
 

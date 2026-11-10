@@ -76,6 +76,14 @@ for (const name of ['findBattle', 'getBattleTicket', 'cancelBattleSearch', 'resu
   mobileContract.methods[name].request.properties.clientSessionId = str;
 }
 
+const learningActions = ['startAttempt', 'resumeAttempt', 'submitAttemptAnswer', 'saveAttemptSelection',
+  'advanceAttempt', 'leaveAttempt', 'getAttemptResult'];
+mobileContract.methods.learningAttempt = {
+  request: {oneOf: learningActions.map(action => object({action: {const: action}, payload: mobileContract.methods[action].request}))},
+  response: {anyOf: [response({attempt}), response({accepted: {type: 'boolean'}}), response({result})]},
+  writes: true,
+};
+
 export function assertAttemptSemantics(value) {
   const ids = new Set();
   for (const q of value.questions) {

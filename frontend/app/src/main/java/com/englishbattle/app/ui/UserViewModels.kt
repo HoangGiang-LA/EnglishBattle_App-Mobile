@@ -236,10 +236,19 @@ class PlayViewModel(app: Application, private val repository: GameRepository) : 
     private fun run(block: suspend () -> Unit) {
         if (_busy.value) return
         val sessionGeneration = generation
+        val interruptPoll = _attempt.value.data?.mode?.let { it != QuizMode.BATTLE } == true
+        if (interruptPoll) poll?.cancel()
         _busy.value = true; _error.value = null
         operation = scope.launch {
             try { gate.withLock { block() } } catch (e: Exception) { val message = friendlyError(e); if (sessionGeneration == generation) _error.value = message }
-            finally { if (sessionGeneration == generation) { _busy.value = false; _attempt.update { it.copy(loading = false) }; _ticket.update { it.copy(loading = false) } } }
+            finally {
+                if (sessionGeneration == generation) {
+                    _busy.value = false
+                    _attempt.update { it.copy(loading = false) }
+                    _ticket.update { it.copy(loading = false) }
+                    if (interruptPoll && poll?.isActive != true) beginPoll()
+                }
+            }
         }
     }
     private fun acceptTicket(t: MatchTicket) {
@@ -288,10 +297,12 @@ class PlayViewModel(app: Application, private val repository: GameRepository) : 
         run { accept(repository.resume(id)) }
     }
     fun submit(optionId: String?) = run {
-        selectionJob?.join()
         val a = _attempt.value.data ?: return@run
         val q = a.current ?: return@run
         if (a.receipt != null || a.status != "active") return@run
+        // Explicit answers carry their own option. Only timeouts and battles
+        // depend on the acknowledgement of the saved selection.
+        if (optionId == null || a.mode == QuizMode.BATTLE) selectionJob?.join()
         accept(repository.submit(a.id, q.id, optionId, "answer-${a.id}-${q.id}"))
     }
     fun saveSelection(optionId: String) {
@@ -305,16 +316,23 @@ class PlayViewModel(app: Application, private val repository: GameRepository) : 
             if (version != selectionVersion) return@launch
             try {
                 repository.saveSelection(a.id, q.id, optionId, UUID.randomUUID().toString())
-                if (version == selectionVersion) _error.value = null
+                val current = _attempt.value.data
+                if (version == selectionVersion && !_busy.value && current?.current?.id == q.id && current.receipt == null)
+                    _error.value = null
             } catch (e: Exception) {
-                if (version == selectionVersion && _attempt.value.data?.current?.id == q.id)
+                currentCoroutineContext().ensureActive()
+                val current = _attempt.value.data
+                if (version == selectionVersion && !_busy.value && current?.current?.id == q.id && current.receipt == null)
                     _error.value = "Chưa lưu được lựa chọn. Kiểm tra kết nối và thử lại."
             }
         }
     }
     fun advance() = run {
         val a = _attempt.value.data ?: return@run
-        accept(repository.advance(a.id, "advance-${a.id}-${a.index}", a.index))
+        val next = if (a.mode != QuizMode.BATTLE && a.status == "waiting" && a.receipt != null)
+            completeWaitingAttempt(a, repository::historyDetail)
+        else repository.advance(a.id, "advance-${a.id}-${a.index}", a.index)
+        accept(next)
     }
     fun leave() = run {
         val a = _attempt.value.data ?: return@run
@@ -380,7 +398,9 @@ class PlayViewModel(app: Application, private val repository: GameRepository) : 
         poll?.cancel()
         if (!foreground) return
         val matching = _ticket.value.data?.status in listOf("searching", "waiting")
-        val playing = _attempt.value.data?.status in listOf("active", "waiting")
+        val a = _attempt.value.data
+        val playing = a?.status == "active" ||
+            (a?.status == "waiting" && (a.mode == QuizMode.BATTLE || a.receipt == null))
         if (!matching && !playing) return
         val interval = if (matching) 1000L else 3000L
         poll = scope.launch {

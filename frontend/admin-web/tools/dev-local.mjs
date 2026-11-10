@@ -133,16 +133,26 @@ async function main() {
     cli, 'emulators:start', '--only', 'functions',
     '--config', 'firebase.admin-local.json', '--project', project, '--non-interactive',
   ], repoDir, env)
-  await waitFor(`http://127.0.0.1:5001/${project}/asia-southeast1/ensureUserProfile`, 401, {
+  const callableProbe = {
     method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({data: {}}),
-  }, 120000)
+  }
+  const warmCallable = action => waitFor(
+    `http://127.0.0.1:5001/${project}/asia-southeast1/${action}`, 401, callableProbe, 120000,
+  )
+  await warmCallable('ensureUserProfile')
+  if (stopping) return
+  // The emulator starts a separate runtime for each callable. Pay that cost
+  // here with unauthenticated requests, before an Android question is timed.
+  console.log('Dang nap truoc cac API lam bai tren Android...')
+  await warmCallable('getUserDashboard')
+  if (stopping) return
+  // A selection save and the confirmation can arrive together.
+  await Promise.all([warmCallable('learningAttempt'), warmCallable('learningAttempt')])
   const adminContract = JSON.parse(readFileSync(resolve(repoDir, 'frontend/contracts/admin.v1.json'), 'utf8'))
   for (const action of adminContract.implementedCallables) {
     if (stopping) return
-    await waitFor(`http://127.0.0.1:5001/${project}/asia-southeast1/${action}`, 401, {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({data: {}}),
-    }, 120000)
+    await warmCallable(action)
   }
   if (stopping) return
   start('Learning worker', ['--watch', resolve(functionsDir, 'tools/learning-worker.mjs')], functionsDir, {

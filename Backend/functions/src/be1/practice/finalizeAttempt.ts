@@ -506,11 +506,13 @@ async function finalizeAttemptStored(
  * @param {string} uid Owner of the attempt.
  * @param {string} attemptId Attempt to read.
  * @param {object} attempt Current attempt state.
+ * @param {object} questions Immutable question snapshot, if already read.
  */
 export async function readAttemptResponse(
   uid: string,
   attemptId: string,
   attempt: Record<string, unknown>,
+  questions?: Record<string, Record<string, unknown>>,
 ): Promise<{serverNow: number; attempt: WireAttempt}> {
   if (
     attempt.status === "completed" ||
@@ -541,15 +543,18 @@ export async function readAttemptResponse(
           return;
         }
         if (slot.status === "waiting" && attempt.status === "active") return;
+        const completedQuestionCount = Math.max(
+          Number(slot.completedQuestionCount) || 0,
+          Number(attempt.answeredCount) || 0,
+        );
+        if (slot.status === attempt.status &&
+            slot.completedQuestionCount === completedQuestionCount) return;
         return {
           ...slot,
           status: attempt.status,
-          completedQuestionCount: Math.max(
-            Number(slot.completedQuestionCount) || 0,
-            Number(attempt.answeredCount) || 0,
-          ),
+          completedQuestionCount,
         };
       });
   }
-  return buildAttemptResponse(uid, attemptId, attempt);
+  return buildAttemptResponse(uid, attemptId, attempt, questions);
 }

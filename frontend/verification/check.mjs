@@ -24,8 +24,8 @@ export function checkPreparation() {
   assert(android.client.some(c => c.client_info.android_client_info.package_name === 'com.englishbattle.app'));
   assert.equal(readJson('database.rules.json').rules['.read'], false);
   assert.equal(readJson('database.rules.json').rules['.write'], false);
-  const callables = [...androidSource.matchAll(/call\("([A-Za-z]+)"/g)].map(m => m[1]);
-  assert.deepEqual([...new Set(callables)].sort(), Object.keys(mobileContract.methods).sort());
+  const callables = new Set([...androidSource.matchAll(/(?:call|getHttpsCallable)\("([A-Za-z]+)"/g)].map(m => m[1]));
+  assert.deepEqual([...callables].sort(), Object.keys(mobileContract.methods).sort());
   const iface = adminSource.split('export interface AdminService {')[1].split('\n}')[0];
   const methods = [...iface.matchAll(/^\s{2}(\w+)\(/gm)].map(m => m[1]);
   assert.deepEqual(methods.sort(), Object.keys(admin.methods).sort());
@@ -40,7 +40,7 @@ export function checkPreparation() {
   assert.equal(Object.keys(seed.topics).length, 25);
   assert.equal(Object.keys(seed.categories).length, 4);
   assert(!('users' in seed) && !('wallets' in seed) && !('battleResults' in seed), 'Seed must not contain fictional runtime activity');
-  return {status: 'PASS', projectId, mobileCallables: callables.length, adminMethods: methods.length,
+  return {status: 'PASS', projectId, mobileCallables: callables.size, adminMethods: methods.length,
     questions: 250, topics: 25, skills: 4, liveBattleKinds: business.phaseOne.liveBattleKinds,
     cloudDataVerified: false, cloudRulesChanged: false, backendImplemented: false};
 }

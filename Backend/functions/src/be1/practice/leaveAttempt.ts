@@ -1,5 +1,5 @@
 import {enforceUserSession} from "../auth/userSession";
-import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {CallableRequest, onCall, HttpsError} from "firebase-functions/v2/https";
 import {battleId, battleSession} from "../battle/battleAccess";
 import {memberBattleResponse} from "../battle/battleService";
 import {adminAuth, adminDb} from "../../config/firebaseAdmin";
@@ -10,12 +10,8 @@ import {
 
 const REQUEST_ID_REGEX = /^[A-Za-z0-9_-]{1,128}$/;
 
-export const leaveAttempt = onCall(
-  {
-    region: "asia-southeast1",
-    maxInstances: 10,
-  },
-  async (request) => {
+export const handleLeaveAttempt =
+  async (request: CallableRequest) => {
     await enforceUserSession(request);
     // 1. Auth check
     const uid = request.auth?.uid;
@@ -104,5 +100,12 @@ export const leaveAttempt = onCall(
       console.error("leaveAttempt failed", {uid, attemptId, error});
       throw new HttpsError("internal", "Unable to leave attempt.");
     }
+  };
+
+export const leaveAttempt = onCall(
+  {
+    region: "asia-southeast1",
+    maxInstances: 10,
   },
+  handleLeaveAttempt,
 );

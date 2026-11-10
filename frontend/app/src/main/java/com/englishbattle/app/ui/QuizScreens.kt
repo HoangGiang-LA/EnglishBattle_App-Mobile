@@ -49,10 +49,17 @@ import java.util.Locale
     }
     var selected by rememberSaveable(a.id, q.id) { mutableStateOf(a.selectedOptionId) }
     var quit by rememberSaveable(a.id) { mutableStateOf(false) }
-    var currentTime by remember(a.id) { mutableLongStateOf(now()) }
-    val seconds = remainingSeconds(a.deadlineAt, currentTime)
+    var currentTime by remember(a.id, q.id, a.deadlineAt) { mutableLongStateOf(now()) }
+    val isBattle = a.mode == QuizMode.BATTLE
+    val showingFinalAnswer = !isBattle && a.status == "waiting" && a.receipt != null
+    val onBack = { if (showingFinalAnswer) back() else quit = true }
+    val ticking = isBattle || (!busy && a.receipt == null && a.status == "active")
+    val seconds = remainingSeconds(a.deadlineAt, currentTime).let {
+        if (isBattle) it else it.coerceAtMost(GameRules.QUESTION_SECONDS)
+    }
     val owner = LocalLifecycleOwner.current
-    LaunchedEffect(a.deadlineAt, owner) {
+    LaunchedEffect(a.id, q.id, a.deadlineAt, ticking, owner) {
+        if (!ticking) return@LaunchedEffect
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) { currentTime = now(); delay(200) }
         }
@@ -60,8 +67,8 @@ import java.util.Locale
     LaunchedEffect(a.id, q.id, seconds, a.receipt, busy, error) {
         if (seconds == 0 && a.receipt == null && !busy && error == null && a.status == "active") submit(null)
     }
-    BackHandler { quit = true }
-    Screen(if (a.mode == QuizMode.BATTLE) "" else if (a.mode == QuizMode.PRACTICE) skillNames[skillIds.indexOf(q.categoryId).coerceAtLeast(0)] else a.mode.title, { quit = true }, action = {
+    BackHandler(onBack = onBack)
+    Screen(if (a.mode == QuizMode.BATTLE) "" else if (a.mode == QuizMode.PRACTICE) skillNames[skillIds.indexOf(q.categoryId).coerceAtLeast(0)] else a.mode.title, onBack, action = {
         Text("00:${seconds.toString().padStart(2, '0')}", color = if (seconds <= 5) MaterialTheme.colorScheme.error else Purple)
     }) {
         if (a.mode == QuizMode.BATTLE) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -111,7 +118,7 @@ import java.util.Locale
         } ?: Primary(if (busy) "Đang gửi..." else if (seconds == 0) "Hết thời gian" else "Gửi đáp án",
             enabled = selected != null && !busy && seconds > 0 && a.status == "active") { submit(selected) }
     }
-    if (quit) AlertDialog(onDismissRequest = { if (!busy) quit = false }, title = { Text("Rời ${a.mode.title.lowercase()}?") },
+    if (quit && !showingFinalAnswer) AlertDialog(onDismissRequest = { if (!busy) quit = false }, title = { Text("Rời ${a.mode.title.lowercase()}?") },
         text = { Text(if (a.mode == QuizMode.BATTLE) "Chủ động rời trận được tính là thua. Đồng hồ vẫn đang chạy."
             else if (a.mode == QuizMode.DAILY) "Bạn sẽ dùng hết lượt hôm nay và không nhận thưởng. Đồng hồ vẫn đang chạy."
             else "Bài này sẽ kết thúc và không nhận thưởng. Đồng hồ vẫn đang chạy.") },

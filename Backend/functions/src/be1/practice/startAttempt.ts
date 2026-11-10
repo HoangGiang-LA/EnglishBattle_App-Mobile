@@ -1,6 +1,6 @@
-import {enforceUserSession} from "../auth/userSession";
-import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {adminAuth, adminDb} from "../../config/firebaseAdmin";
+import {requireActiveUserSession} from "../auth/userSession";
+import {CallableRequest, onCall, HttpsError} from "firebase-functions/v2/https";
+import {adminDb} from "../../config/firebaseAdmin";
 import {WireQuestion, getDateKey, normalizeMode} from "./attemptHelper";
 import {readAttemptResponse as buildAttemptResponse} from "./finalizeAttempt";
 import {startDailyAttempt} from "./startDailyAttempt";
@@ -53,10 +53,18 @@ export async function selectQuestions(
     throw new HttpsError("invalid-argument", `Unsupported mode: ${mode}`);
   }
 
-  const [categories, topics, lessons, assets] = await Promise.all(
-    ["categories", "topics", "lessons", "contentAssets"]
-      .map((path) => adminDb.ref(path).get()),
-  );
+  const templateId = mode === "BATTLE" ? "battle_mixed" :
+    mode === "TEST" ? "test_mixed" : "daily_mixed";
+  const [categories, topics, lessons, assets, questionsSnap, templateSnap] =
+    await Promise.all([
+      adminDb.ref("categories").get(),
+      adminDb.ref("topics").get(),
+      adminDb.ref("lessons").get(),
+      adminDb.ref("contentAssets").get(),
+      adminDb.ref("questions").get(),
+      mode === "PRACTICE" ? null :
+        adminDb.ref(`quizTemplates/${templateId}`).get(),
+    ]);
   const relations = {
     categories: record(categories.val()),
     topics: record(topics.val()),
@@ -72,11 +80,7 @@ export async function selectQuestions(
 
   let pool: Record<string, unknown> = {};
   if (mode !== "PRACTICE") {
-    const templateId = mode === "BATTLE" ? "battle_mixed" :
-      mode === "TEST" ? "test_mixed" : "daily_mixed";
-    const template = (
-      await adminDb.ref(`quizTemplates/${templateId}`).get()
-    ).val();
+    const template = templateSnap?.val();
     if (
       !template ||
       template.status !== "published" ||
@@ -109,8 +113,6 @@ export async function selectQuestions(
   }
 
   // Filter published questions in memory without requiring an .indexOn entry.
-  const questionsSnap = await adminDb.ref("questions").get();
-
   if (!questionsSnap.exists()) {
     throw new HttpsError(
       "failed-precondition",
@@ -149,20 +151,24 @@ export async function selectQuestions(
   // Select random subset
   const selected = shuffle(allQuestions);
 
-  // Load version content for selected questions
+  // Read batches in shuffled order, filling gaps for invalid candidates.
   const wireQuestions: WireQuestion[] = [];
 
-  for (const {id, meta} of selected) {
-    const [versionSnap, answerSnap] = await Promise.all([
-      adminDb.ref(`questionVersions/${id}/${meta.currentVersion}`).get(),
-      adminDb.ref(`questionAnswers/${id}/${meta.currentVersion}`).get(),
-    ]);
-    const question = playableQuestion(
-      id, meta, versionSnap.val(), answerSnap.val(), relations,
-    );
-    if (!question) continue;
-    wireQuestions.push(question);
-    if (wireQuestions.length === count) break;
+  let offset = 0;
+  while (offset < selected.length && wireQuestions.length < count) {
+    const size = Math.min(8, count - wireQuestions.length);
+    const batch = selected.slice(offset, offset + size);
+    const candidates = await Promise.all(batch.map(async ({id, meta}) => {
+      const [version, answer] = await Promise.all([
+        adminDb.ref(`questionVersions/${id}/${meta.currentVersion}`).get(),
+        adminDb.ref(`questionAnswers/${id}/${meta.currentVersion}`).get(),
+      ]);
+      return playableQuestion(id, meta, version.val(), answer.val(), relations);
+    }));
+    for (const question of candidates) {
+      if (question) wireQuestions.push(question);
+    }
+    offset += batch.length;
   }
   if (wireQuestions.length !== count) {
     throw new HttpsError(
@@ -174,13 +180,8 @@ export async function selectQuestions(
   return wireQuestions;
 }
 
-export const startAttempt = onCall(
-  {
-    region: "asia-southeast1",
-    maxInstances: 10,
-  },
-  async (request) => {
-    await enforceUserSession(request);
+export const handleStartAttempt =
+  async (request: CallableRequest) => {
     // 1. Auth check
     const uid = request.auth?.uid;
     if (!uid) {
@@ -239,23 +240,7 @@ export const startAttempt = onCall(
 
     try {
       // 3. Verify account is active
-      const authUser = await adminAuth.getUser(uid);
-      if (authUser.disabled) {
-        throw new HttpsError(
-          "permission-denied",
-          "This account has been disabled.",
-        );
-      }
-
-      const accessSnap = await adminDb.ref(`accountAccess/${uid}`).get();
-      const access = accessSnap.val();
-
-      if (access?.status !== "active") {
-        throw new HttpsError(
-          "permission-denied",
-          "This account is not active.",
-        );
-      }
+      await requireActiveUserSession(request);
 
       // 4. Idempotency & Concurrency: acquire operation lock with lease
       const now = Date.now();
@@ -601,5 +586,12 @@ export const startAttempt = onCall(
 
       throw new HttpsError("internal", "Unable to start attempt.");
     }
+  };
+
+export const startAttempt = onCall(
+  {
+    region: "asia-southeast1",
+    maxInstances: 10,
   },
+  handleStartAttempt,
 );

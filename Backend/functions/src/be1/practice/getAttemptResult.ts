@@ -1,17 +1,13 @@
 import {enforceUserSession} from "../auth/userSession";
-import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {CallableRequest, onCall, HttpsError} from "firebase-functions/v2/https";
 import {adminAuth, adminDb} from "../../config/firebaseAdmin";
 import {finalizeAttemptLogic} from "./finalizeAttempt";
 import {isDailyExpired} from "./attemptHelper";
 import {battleId, battleSession} from "../battle/battleAccess";
 import {memberBattleResponse} from "../battle/battleService";
 
-export const getAttemptResult = onCall(
-  {
-    region: "asia-southeast1",
-    maxInstances: 10,
-  },
-  async (request) => {
+export const handleGetAttemptResult =
+  async (request: CallableRequest) => {
     await enforceUserSession(request);
     // 1. Auth check
     const uid = request.auth?.uid;
@@ -105,5 +101,12 @@ export const getAttemptResult = onCall(
       console.error("getAttemptResult failed", {uid, attemptId, error});
       throw new HttpsError("internal", "Unable to get attempt result.");
     }
+  };
+
+export const getAttemptResult = onCall(
+  {
+    region: "asia-southeast1",
+    maxInstances: 10,
   },
+  handleGetAttemptResult,
 );

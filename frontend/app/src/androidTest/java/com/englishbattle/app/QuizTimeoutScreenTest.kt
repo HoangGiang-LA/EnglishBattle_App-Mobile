@@ -21,6 +21,34 @@ class QuizTimeoutScreenTest {
     @Test fun choosingImmediatelySavesAndTimeoutRequestsServerGrading() = checkTimeout("b")
     @Test fun noSelectionAlsoResolvesAtTimeout() = checkTimeout(null)
 
+    @Test fun countdownFreezesWhileGradingAndUsesTheNewQuestionDeadline() {
+        val clock = AtomicLong(1000)
+        val second = question.copy(id = "second-q", prompt = "Choose the next answer")
+        val state = mutableStateOf(AttemptState("grading", QuizMode.TEST, "",
+            listOf(question, second), 0, 31000))
+        val busy = mutableStateOf(false)
+        compose.setContent {
+            EnglishBattleTheme {
+                QuizScreen(LoadState(state.value), busy.value, null, "timeout-test",
+                    clock::get, {}, { busy.value = true }, {}, {}, {})
+            }
+        }
+        clock.set(6000)
+        compose.waitUntil(5000) { compose.onAllNodesWithText("00:25").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("First choice").performScrollTo().performClick()
+        compose.onNodeWithText("Gửi đáp án").performScrollTo().performClick()
+        compose.onNodeWithText("Đang gửi...").assertExists()
+        clock.set(14000)
+        compose.runOnIdle { state.value = state.value.copy(selectedOptionId = "a") }
+        compose.onNodeWithText("00:25").assertExists()
+        compose.runOnIdle {
+            state.value = state.value.copy(index = 1, deadlineAt = 44000)
+            busy.value = false
+        }
+        compose.onNodeWithText("Choose the next answer").assertExists()
+        compose.onNodeWithText("00:30").assertExists()
+    }
+
     private fun checkTimeout(option: String?) {
         val clock = AtomicLong(1000)
         val saved = CopyOnWriteArrayList<String>()

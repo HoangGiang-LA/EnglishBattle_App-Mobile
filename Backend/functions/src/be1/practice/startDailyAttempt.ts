@@ -112,8 +112,7 @@ export async function startDailyAttempt(
     );
   }
   const attemptId = slot.attemptId as string;
-  const openedAt = Number(slot.startedAt);
-  const deadlineAt = Math.min(openedAt + 30000, endsAt);
+  const firstOpenedAt = Math.min(Date.now(), endsAt - 1);
   const questionRecord = Object.fromEntries(
     questions.map((q, ordinal) => [
       ordinal,
@@ -127,7 +126,10 @@ export async function startDailyAttempt(
         passage: q.passage,
         audioText: q.audioText,
         ordinal,
-        ...(ordinal === 0 ? {openedAt, deadlineAt} : {}),
+        ...(ordinal === 0 ? {
+          openedAt: firstOpenedAt,
+          deadlineAt: Math.min(firstOpenedAt + 30000, endsAt),
+        } : {}),
       },
     ]),
   );
@@ -141,6 +143,11 @@ export async function startDailyAttempt(
       "Daily requires five valid questions.",
     );
   }
+  const openedAt =
+    Number(storedQuestions[0]?.openedAt) || Number(slot.startedAt);
+  const deadlineAt = Math.min(
+    Number(storedQuestions[0]?.deadlineAt) || openedAt + 30000, endsAt,
+  );
   const attemptTx = await adminDb
     .ref(`practiceAttempts/${uid}/${attemptId}`)
     .transaction(
@@ -151,7 +158,7 @@ export async function startDailyAttempt(
           categoryId: "",
           topicId: "",
           status: "active",
-          startedAt: openedAt,
+          startedAt: Number(slot.startedAt),
           questionCount: 5,
           correctCount: 0,
           answeredCount: 0,
@@ -164,5 +171,7 @@ export async function startDailyAttempt(
         },
     );
   await enqueueLearningWork(uid, attemptId, deadlineAt);
-  return readAttemptResponse(uid, attemptId, attemptTx.snapshot.val());
+  return readAttemptResponse(
+    uid, attemptId, attemptTx.snapshot.val(), storedQuestions,
+  );
 }

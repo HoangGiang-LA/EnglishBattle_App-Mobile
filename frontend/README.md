@@ -37,7 +37,7 @@ Chỉ bản debug cho phép HTTP tới địa chỉ máy tính. Bản release lu
 ## Chế độ dữ liệu
 
 - **Firebase thật (mặc định):** đăng ký/đăng nhập email, đặt lại mật khẩu, đổi tên/email và khôi phục phiên. Danh mục đọc `categories`/`topics` published. Cần bật Email/Password và cấp Rules phù hợp. Lỗi dịch vụ được hiển thị, không chuyển sang dữ liệu giả.
-- **Backend:** 18 callable Android đã được export trong `Backend/functions`, chạy trên Functions Emulator khi phát triển. Thông báo trong app đã hoạt động; thông báo đẩy FCM chưa được triển khai.
+- **Backend:** Các callable Android được export trong `Backend/functions`, chạy trên Functions Emulator khi phát triển. Bản Android mới dùng `learningAttempt` cho luồng làm bài. Deploy callable này lên Firebase trước khi phát hành APK gọi cloud. Thông báo trong app đã hoạt động; thông báo đẩy FCM chưa được triển khai.
 
 Tên được đồng bộ từ Auth sang RTDB sau khi lưu; khi mở lại app hoặc có mạng trở lại, app tải lại hồ sơ Auth và gọi `ensureUserProfile` để phục hồi đồng bộ bị gián đoạn. Email mới chỉ được đồng bộ sau khi Firebase Auth đã xác nhận thay đổi. Bước đồng bộ chỉ sửa tên/email và thời điểm cập nhật, giữ dữ liệu nghiệp vụ hiện có.
 

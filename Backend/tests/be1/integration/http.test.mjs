@@ -69,18 +69,18 @@ async function user() {
 const start = async (u, mode, requestId = randomUUID()) => (await ok('startAttempt', u,
   {mode, requestId, ...(mode === 'PRACTICE' ? {topicId: 'vocabulary_daily_life'} : {})})).attempt;
 const correct = q => seed.questionAnswers[q.id][q.version].correctOptionId;
-async function finish(u, attempt, right = () => true) {
+async function finish(u, attempt, right = () => true, invoke = ok) {
   for (let i = 0; i < attempt.questions.length; i++) {
     const q = attempt.questions[i];
     const optionId = right(i) ? correct(q) : q.options.find(o => o.id !== correct(q)).id;
-    await ok('saveAttemptSelection', u, {attemptId: attempt.id, questionId: q.id, optionId, requestId: randomUUID()});
-    const result = await ok('submitAttemptAnswer', u, {attemptId: attempt.id, questionId: q.id, optionId, requestId: randomUUID()});
+    await invoke('saveAttemptSelection', u, {attemptId: attempt.id, questionId: q.id, optionId, requestId: randomUUID()});
+    const result = await invoke('submitAttemptAnswer', u, {attemptId: attempt.id, questionId: q.id, optionId, requestId: randomUUID()});
     if (i + 1 < attempt.questions.length) {
       assert.equal(result.attempt.receipts[i].correct, right(i));
-      await ok('advanceAttempt', u, {attemptId: attempt.id, expectedIndex: i, requestId: randomUUID()});
+      await invoke('advanceAttempt', u, {attemptId: attempt.id, expectedIndex: i, requestId: randomUUID()});
     } else assert.ok(['waiting', 'completed'].includes(result.attempt.status));
   }
-  return (await ok('getAttemptResult', u, {attemptId: attempt.id})).result;
+  return (await invoke('getAttemptResult', u, {attemptId: attempt.id})).result;
 }
 async function clientRead(path, u, query = '') {
   return fetch(`http://127.0.0.1:9100/${path}.json?ns=${namespace}${u ? `&auth=${encodeURIComponent(u.idToken)}` : ''}${query}`);
@@ -105,7 +105,11 @@ try {
   assert.equal(rules.status, 200);
   await adminDb.ref().set(seed);
 
-  await test('HTTP: all 18 exported callable endpoints reject absent or invalid Firebase tokens', async () => {
+  await test('HTTP: all exported callable endpoints reject absent or invalid Firebase tokens', async () => {
+    await Promise.all([
+      rejected('learningAttempt', null, {}, 401),
+      rejected('learningAttempt', null, {}, 401),
+    ]);
     for (const name of Object.keys(mobileContract.methods)) {
       await rejected(name, null, {}, 401);
       await rejected(name, {idToken: 'invalid-token', sid: randomUUID()}, {}, 401);
@@ -166,6 +170,25 @@ try {
     await Promise.all([ok('getAttemptResult', a, {attemptId: practice.id}), ok('leaveAttempt', a, {attemptId: practice.id, requestId: randomUUID()})]);
     assert.equal(await read(`wallets/${a.uid}/coinBalance`), 1);
     assert.equal((await read(`learningProgress/${a.uid}/vocabulary_daily_life`)).completedAttempts, 1);
+  });
+  await test('HTTP learning callable: routes every quiz action and shares state with the legacy endpoints', async () => {
+    const learner = await user();
+    await ok('ensureUserProfile', learner);
+    const invoke = (action, u, payload) => ok('learningAttempt', u, {action, payload});
+    const payload = {mode: 'PRACTICE', topicId: 'vocabulary_daily_life', requestId: randomUUID()};
+    const {attempt} = await invoke('startAttempt', learner, payload);
+    assert.equal((await start(learner, 'PRACTICE', payload.requestId)).id, attempt.id);
+    const ref = {attemptId: attempt.id};
+    assert.deepEqual((await invoke('resumeAttempt', learner, ref)).attempt.questions, attempt.questions);
+    await rejected('learningAttempt', b, {action: 'resumeAttempt', payload: ref}, 404);
+    await rejected('learningAttempt', learner, {action: 'getUserDashboard', payload: {}}, 400);
+    await rejected('learningAttempt', learner, {action: 'resumeAttempt', payload: {attemptId: 'battle_invalid'}}, 400);
+    const result = await finish(learner, attempt, i => i !== 0, invoke);
+    assert.equal(result.correct, 9);
+    assert.equal(result.coins, 1);
+    const replay = await invoke('leaveAttempt', learner, {...ref, requestId: randomUUID()});
+    assert.deepEqual(replay.attempt.result, result);
+    assert.equal(await read(`wallets/${learner.uid}/coinBalance`), 1);
   });
   await test('HTTP test and daily: 20/5 questions, unique daily slot, terminal result and exact reward totals', async () => {
     exam = await start(a, 'TEST'); assert.equal(exam.questions.length, 20);
@@ -237,11 +260,12 @@ try {
     assert.equal((await ok('getUserDashboard', a)).dashboard.coins, 10);
     assert.equal((await read(`userSettlements/${a.uid}`)).coinBalance, 10);
   });
-  await test('HTTP: all 18 callable endpoints enforce banned/deleted/disabled account access without side effects', async () => {
+  await test('HTTP: all callable endpoints enforce banned/deleted/disabled account access without side effects', async () => {
     const payloads = {
       ensureUserProfile: {}, getUserDashboard: {}, getStudyStatistics: {period: 'week'}, getHistory: {kind: 'learning'}, getCoinLedger: {},
       startAttempt: {mode: 'PRACTICE', topicId: 'vocabulary_daily_life', requestId: randomUUID()},
       resumeAttempt: {attemptId: practice.id}, getAttemptResult: {attemptId: practice.id},
+      learningAttempt: {action: 'resumeAttempt', payload: {attemptId: practice.id}},
       saveAttemptSelection: {attemptId: practice.id, questionId: practice.questions[0].id, optionId: correct(practice.questions[0]), requestId: randomUUID()},
       submitAttemptAnswer: {attemptId: practice.id, questionId: practice.questions[0].id, optionId: correct(practice.questions[0]), requestId: randomUUID()},
       advanceAttempt: {attemptId: practice.id, requestId: randomUUID()}, leaveAttempt: {attemptId: practice.id, requestId: randomUUID()},

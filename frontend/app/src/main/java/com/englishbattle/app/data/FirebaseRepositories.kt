@@ -94,14 +94,16 @@ class FirebaseCatalogRepository(private val db: FirebaseDatabase) : CatalogRepos
 }
 
 class ServerClock {
-    private var offset = 0L
+    private var offset: Long? = null
     private var battleOffset: Long? = null
-    fun synchronize(serverNow: Long, sentAt: Long, receivedAt: Long) { offset = serverNow - (sentAt + (receivedAt - sentAt) / 2) }
+    // Callables stamp serverNow after processing. The time spent handling the
+    // request is already reflected in that timestamp.
+    fun synchronize(serverNow: Long) { offset = serverNow - System.nanoTime() / 1_000_000L }
     // Battle responses use database time even when a local Functions host has a skewed clock.
     fun synchronizeBattle(serverNow: Long) { battleOffset = serverNow - System.nanoTime() / 1_000_000L }
     fun now(battle: Boolean = false): Long {
         if (battle) battleOffset?.let { return it + System.nanoTime() / 1_000_000L }
-        return System.currentTimeMillis() + offset
+        return offset?.let { it + System.nanoTime() / 1_000_000L } ?: System.currentTimeMillis()
     }
 }
 
@@ -116,37 +118,44 @@ class FirebaseGameRepository(private val clock: ServerClock,
             prefs.edit().putString("battle-session", it).apply()
         }
     }
-    private fun callableTimeoutMs(name: String): Long = when (name) {
-        "getStudyStatistics" -> 120_000L
-        "ensureUserProfile" -> 60_000L
-        else -> 20_000L
-    }
-    private suspend fun call(name: String, data: Map<String, Any?> = emptyMap()): JSONObject = withTimeout(callableTimeoutMs(name)) {
-        val sentAt = System.currentTimeMillis()
-        val request = if (name in setOf("findBattle", "getBattleTicket", "cancelBattleSearch", "resumeAttempt",
-                "submitAttemptAnswer", "saveAttemptSelection", "advanceAttempt", "leaveAttempt", "getAttemptResult"))
-            data + ("clientSessionId" to clientSessionId) else data
-        val response = try {
-            val callable = functions.getHttpsCallable(name)
-            if (name in setOf("getStudyStatistics", "ensureUserProfile"))
-                callable.setTimeout(callableTimeoutMs(name), java.util.concurrent.TimeUnit.MILLISECONDS)
-            callable.call(request).await().data
+    private val learningActions = setOf("startAttempt", "resumeAttempt", "submitAttemptAnswer",
+        "saveAttemptSelection", "advanceAttempt", "leaveAttempt", "getAttemptResult")
+    private val matchmakingActions = setOf("findBattle", "getBattleTicket", "cancelBattleSearch")
+
+    private suspend fun call(name: String, data: Map<String, Any?> = emptyMap()): JSONObject {
+        val battle = name in matchmakingActions || (data["attemptId"] as? String)?.startsWith("battle_") == true
+        val learning = name in learningActions && !battle
+        val timeoutMs = when {
+            name == "getStudyStatistics" -> 120_000L
+            name == "ensureUserProfile" -> 60_000L
+            learning -> 45_000L
+            else -> 20_000L
         }
-        catch (e: FirebaseFunctionsException) {
-            if (e.code == FirebaseFunctionsException.Code.UNAUTHENTICATED) auth.signOut()
-            throw e
+        return withTimeout(timeoutMs) {
+            val request = when {
+                learning -> mapOf("action" to name, "payload" to data)
+                battle && (name in matchmakingActions || name in learningActions) -> data + ("clientSessionId" to clientSessionId)
+                else -> data
+            }
+            val response = try {
+                val callable = if (learning) functions.getHttpsCallable("learningAttempt") else functions.getHttpsCallable(name)
+                if (timeoutMs != 20_000L)
+                    callable.setTimeout(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+                callable.call(request).await().data
+            } catch (e: FirebaseFunctionsException) {
+                if (e.code == FirebaseFunctionsException.Code.UNAUTHENTICATED) auth.signOut()
+                throw e
+            }
+            val raw = response as? Map<*, *>
+                ?: throw UserFacingException("Dịch vụ trả về dữ liệu không hợp lệ. Vui lòng thử lại.")
+            val json = JSONObject(raw)
+            if (json.has("serverNow")) {
+                val serverNow = json.getLong("serverNow")
+                if (battle) clock.synchronizeBattle(serverNow)
+                else clock.synchronize(serverNow)
+            }
+            json
         }
-        val raw = response as? Map<*, *>
-            ?: throw UserFacingException("Dịch vụ trả về dữ liệu không hợp lệ. Vui lòng thử lại.")
-        val json = JSONObject(raw)
-        if (json.has("serverNow")) {
-            val serverNow = json.getLong("serverNow")
-            val battle = name in setOf("findBattle", "getBattleTicket", "cancelBattleSearch") ||
-                (data["attemptId"] as? String)?.startsWith("battle_") == true
-            if (battle) clock.synchronizeBattle(serverNow)
-            else clock.synchronize(serverNow, sentAt, System.currentTimeMillis())
-        }
-        json
     }
     private suspend fun attempt(response: JSONObject): AttemptState = completeWaitingAttempt(
         WireCodec.attempt(response.getJSONObject("attempt")), ::historyDetail
@@ -159,8 +168,11 @@ class FirebaseGameRepository(private val clock: ServerClock,
     override suspend fun start(mode: QuizMode, topicId: String?, requestId: String) = attempt(call("startAttempt",
         mapOf("mode" to mode.name, "topicId" to topicId, "requestId" to requestId)))
     override suspend fun resume(attemptId: String) = attempt(call("resumeAttempt", mapOf("attemptId" to attemptId)))
-    override suspend fun submit(attemptId: String, questionId: String, optionId: String?, requestId: String) = attempt(call("submitAttemptAnswer",
-        mapOf("attemptId" to attemptId, "questionId" to questionId, "optionId" to optionId, "requestId" to requestId)))
+    override suspend fun submit(attemptId: String, questionId: String, optionId: String?, requestId: String): AttemptState {
+        val response = call("submitAttemptAnswer",
+            mapOf("attemptId" to attemptId, "questionId" to questionId, "optionId" to optionId, "requestId" to requestId))
+        return WireCodec.attempt(response.getJSONObject("attempt"))
+    }
     override suspend fun saveSelection(attemptId: String, questionId: String, optionId: String, requestId: String) {
         call("saveAttemptSelection", mapOf("attemptId" to attemptId, "questionId" to questionId,
             "optionId" to optionId, "requestId" to requestId))

@@ -1,17 +1,12 @@
-import {enforceUserSession} from "../auth/userSession";
-import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {adminAuth, adminDb} from "../../config/firebaseAdmin";
+import {requireActiveUserSession} from "../auth/userSession";
+import {CallableRequest, onCall, HttpsError} from "firebase-functions/v2/https";
+import {adminDb} from "../../config/firebaseAdmin";
 import {readAttemptResponse as buildAttemptResponse} from "./finalizeAttempt";
 import {battleId, battleSession} from "../battle/battleAccess";
 import {memberBattleResponse} from "../battle/battleService";
 
-export const resumeAttempt = onCall(
-  {
-    region: "asia-southeast1",
-    maxInstances: 10,
-  },
-  async (request) => {
-    await enforceUserSession(request);
+export const handleResumeAttempt =
+  async (request: CallableRequest) => {
     // 1. Auth check
     const uid = request.auth?.uid;
     if (!uid) {
@@ -32,23 +27,7 @@ export const resumeAttempt = onCall(
 
     try {
       // 3. Verify account is active
-      const authUser = await adminAuth.getUser(uid);
-      if (authUser.disabled) {
-        throw new HttpsError(
-          "permission-denied",
-          "This account has been disabled.",
-        );
-      }
-
-      const accessSnap = await adminDb.ref(`accountAccess/${uid}`).get();
-      const access = accessSnap.val();
-
-      if (access?.status !== "active") {
-        throw new HttpsError(
-          "permission-denied",
-          "This account is not active.",
-        );
-      }
+      await requireActiveUserSession(request);
 
       if (battleId(attemptId)) {
         return memberBattleResponse(uid, attemptId,
@@ -79,5 +58,12 @@ export const resumeAttempt = onCall(
 
       throw new HttpsError("internal", "Unable to resume attempt.");
     }
+  };
+
+export const resumeAttempt = onCall(
+  {
+    region: "asia-southeast1",
+    maxInstances: 10,
   },
+  handleResumeAttempt,
 );

@@ -151,6 +151,43 @@ try {
     } finally { Date.now = clock; }
   });
 
+  await test('Grading delay does not expire an answer received on time or shorten the next question', async () => {
+    const {uid, a} = await fresh();
+    const question = a.questions[0];
+    const originalRef = adminDb.ref;
+    const originalClock = Date.now;
+    const receivedAt = a.deadlineAt - 100;
+    const afterGrading = a.deadlineAt + 2000;
+    Date.now = () => receivedAt;
+    adminDb.ref = function(refPath) {
+      const ref = originalRef.call(this, refPath);
+      if (refPath === `questionAnswers/${question.id}/${question.version}`) {
+        const get = ref.get.bind(ref);
+        ref.get = async () => {
+          const snapshot = await get();
+          Date.now = () => afterGrading;
+          return snapshot;
+        };
+      }
+      return ref;
+    };
+    try {
+      const {attempt} = await invoke(submitAttemptAnswer, uid, {attemptId: a.id,
+        questionId: question.id, optionId: correct(question), requestId: randomUUID()});
+      assert.equal(attempt.receipts[0].correct, true);
+      const answer = (await read(path(uid, a))).answers[0];
+      assert.equal(answer.timedOut, false);
+      assert.equal(answer.receivedAt, receivedAt);
+      const next = await invoke(advanceAttempt, uid, {attemptId: a.id,
+        expectedIndex: 0, requestId: randomUUID()});
+      assert.equal(next.attempt.index, 1);
+      assert.equal(next.attempt.deadlineAt, afterGrading + 30000);
+    } finally {
+      adminDb.ref = originalRef;
+      Date.now = originalClock;
+    }
+  });
+
   for (const [mode, coins] of [['PRACTICE', 1], ['TEST', 2]]) await test(`${mode}: restart catches up all missed deadlines and settles once`, async () => {
     const {uid, a} = await fresh(mode);
     const firstDeadline = await expire(uid, a, Date.now() - a.questions.length * 30000 - 1000);

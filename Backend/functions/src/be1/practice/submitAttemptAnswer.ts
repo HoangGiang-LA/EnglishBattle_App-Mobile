@@ -1,16 +1,14 @@
-import {enforceUserSession} from "../auth/userSession";
-import {onCall, HttpsError} from "firebase-functions/v2/https";
-import {adminAuth, adminDb} from "../../config/firebaseAdmin";
+import {requireActiveUserSession} from "../auth/userSession";
+import {CallableRequest, onCall, HttpsError} from "firebase-functions/v2/https";
 import {contentId} from "./contentValidation";
 import {submitLearningAnswer} from "./attemptState";
 import {readAttemptResponse} from "./finalizeAttempt";
 import {battleId, battleSession} from "../battle/battleAccess";
 import {memberBattleResponse} from "../battle/battleService";
 
-export const submitAttemptAnswer = onCall(
-  {region: "asia-southeast1", maxInstances: 10},
-  async (request) => {
-    await enforceUserSession(request);
+export const handleSubmitAttemptAnswer =
+  async (request: CallableRequest) => {
+    const receivedAt = Date.now();
     const uid = request.auth?.uid;
     if (!uid) {
       throw new HttpsError("unauthenticated", "You must sign in first.");
@@ -30,26 +28,25 @@ export const submitAttemptAnswer = onCall(
     ) {
       throw new HttpsError("invalid-argument", "Invalid answer request.");
     }
-    const authUser = await adminAuth.getUser(uid);
-    const access = (await adminDb.ref(`accountAccess/${uid}`).get()).val();
-    if (authUser.disabled || access?.status !== "active") {
-      throw new HttpsError(
-        "permission-denied",
-        "This account is not active.",
-      );
-    }
+    await requireActiveUserSession(request);
+
     if (battleId(attemptId)) {
       return memberBattleResponse(uid, attemptId,
         battleSession(request.data?.clientSessionId),
         {type: "submit", questionId, optionId, requestId});
     }
-    const attempt = await submitLearningAnswer(
+    const {attempt, questions} = await submitLearningAnswer(
       uid,
       attemptId,
       questionId,
       optionId,
       requestId,
+      receivedAt,
     );
-    return readAttemptResponse(uid, attemptId, attempt);
-  },
+    return readAttemptResponse(uid, attemptId, attempt, questions);
+  };
+
+export const submitAttemptAnswer = onCall(
+  {region: "asia-southeast1", maxInstances: 10},
+  handleSubmitAttemptAnswer,
 );
