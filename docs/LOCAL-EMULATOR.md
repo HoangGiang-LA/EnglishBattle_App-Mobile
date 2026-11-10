@@ -9,7 +9,8 @@ Không chạy đồng thời bộ local này và bộ BE1 QA cũ vì dùng chung
 - Node.js **24 LTS** và npm (phù hợp runtime Functions hiện có).
 - HTTP server chạy riêng vẫn hỗ trợ Node 22.9+; Web với bộ dependencies hiện tại
   cần Node 22.13+ nếu dùng nhánh 22. Bộ Emulator chọn đúng major 24 để khớp Functions.
-- JDK **21**, đặt JAVA_HOME/PATH để `java -version` chạy được.
+- JDK **21**. Setup/Start-Emulators chọn đúng major 21 và chỉ đổi JAVA_HOME/PATH
+  trong tiến trình script; không đổi Java mặc định Windows hay Gradle JDK.
 - Git; PowerShell 5.1 hoặc 7.
 - Android Studio, Android SDK Platform 35 và một Android Emulator API 26 trở lên
   nếu chạy app. Chọn Gradle JDK 21; mở thư mục `frontend` và đợi Sync.
@@ -27,6 +28,24 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\local\Setup.ps
 Script cài dependencies của Functions, HTTP server và Admin Web, sau đó build
 Functions. Không ghi đè `.env`, local.properties hoặc đổi Firebase project thật.
 `Setup.ps1 -CheckOnly` chỉ kiểm tra công cụ, không cài dependencies.
+
+### Chọn JDK 21 riêng cho Emulator
+
+Nếu Java mặc định là 17/25/26, không cần gỡ hoặc đổi cấu hình toàn máy.
+Có thể tải ZIP JDK 21 từ [Microsoft](https://learn.microsoft.com/en-us/java/openjdk/download),
+kiểm tra SHA-256 rồi giải nén vào `.local/tools/jdk21` (được Git ignore).
+Script tìm JDK 21 ở JAVA_HOME, thư mục portable này, các thư mục cài Java thông dụng,
+và java.exe trên PATH. Phiên bản khác 21 bị bỏ qua; không tìm thấy sẽ báo lỗi trước khi mở emulator.
+Dùng tham số để chọn chính xác một thư mục, đường dẫn sai sẽ bị từ chối:
+
+~~~powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/local/Setup.ps1 -CheckOnly -JavaHome 'C:\Tools\jdk-21'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/local/Start-Emulators.ps1 -JavaHome 'C:\Tools\jdk-21'
+~~~
+
+Trên máy kiểm thử lần này, JDK portable 21.0.13.0.2 được chọn tự động.
+Kết quả chạy lại thật: [kiểm thử JDK 21](LOCAL-EMULATOR-JDK21-VERIFICATION.md).
+Nếu cổng bị chiếm, xác định chủ sở hữu trước; không tự dừng tiến trình của người khác.
 
 ## 2. Khởi động — bốn terminal tại thư mục repository
 
@@ -193,8 +212,23 @@ Không chạy đồng thời server/Web của hai môi trường trên cùng c�
   BE2 còn thiếu không được tạo tự động bởi Emulator.
 - Scheduler `expireDailyAttempts` không tự chạy theo lịch trong bộ local này;
   bộ test TEST/DAILY kiểm tra worker riêng. Emulator không mô phỏng toàn bộ lịch production.
-- Admin Auth là luồng thật trên Emulator; các trang nghiệp vụ vẫn dùng
-  **MockAdminService**, không phải API CRUD BE2 đã tích hợp.
+- Admin Auth dùng SDK/API thật trên Emulator. Start-AdminWeb.ps1 mặc định chọn
+  **MockAdminService**; thêm -DataSource firebase để chọn FirebaseAdminService.
+  Hai lựa chọn nguồn nghiệp vụ và emulator/cloud độc lập. Backend đã export
+  21 callable admin; nguồn battle vẫn cần engine/owner xác minh. Không fallback dữ liệu mẫu.
+  Xem [bàn giao API admin](ADMIN-API-INTEGRATION.md) cho trạng thái và kiểm thử lần mới.
 
 Tham khảo: [Firebase Emulator Suite](https://firebase.google.com/docs/emulator-suite),
 [kết nối Functions](https://firebase.google.com/docs/emulator-suite/connect_functions).
+
+## Backend admin mới
+
+Xem [ADMIN-API.md](../Backend/functions/ADMIN-API.md) cho 21 callable, schema, giới hạn và kết quả kiểm thử mới. Setup.ps1 tạo ADMIN_REQUEST_HMAC_KEY riêng cho emulator trong Backend/functions/.env.local nếu chưa có, không ghi đè key hiện có hoặc cấp quyền cloud.
+
+Để chạy E2E nghiệp vụ, Web phải được mở với -DataSource firebase:
+
+~~~powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/local/Test-Local.ps1 -AdminBrowser
+~~~
+
+Script chạy 4 test local cũ, type-check --noEmit, 13 test admin và 3 E2E thật. Start-Emulators đã build trước khi mở watcher; không rebuild lib trong lúc suite gửi request để tránh restart worker giữa chừng. -Browser vẫn chọn auth.spec.ts cũ với Web mock; hiện assertion provisioning của suite cũ lệch luồng HTTP read-only trong working tree, xem ghi chú backend.

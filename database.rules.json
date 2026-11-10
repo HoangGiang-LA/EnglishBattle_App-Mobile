@@ -3,11 +3,16 @@
     ".read": false,
     ".write": false,
     "categories": {
-      ".indexOn": ["status"],
+      ".indexOn": [
+        "status"
+      ],
       ".read": "auth != null && root.child('accountAccess').child(auth.uid).child('status').val() === 'active' && query.orderByChild === 'status' && query.equalTo === 'published'"
     },
     "topics": {
-      ".indexOn": ["status", "categoryId"],
+      ".indexOn": [
+        "status",
+        "categoryId"
+      ],
       ".read": "auth != null && root.child('accountAccess').child(auth.uid).child('status').val() === 'active' && query.orderByChild === 'status' && query.equalTo === 'published'"
     },
     "accountAccess": {
@@ -17,18 +22,29 @@
     },
     "practiceAttempts": {
       "$uid": {
-        ".indexOn": ["finishedAt"]
+        ".indexOn": [
+          "finishedAt"
+        ]
       }
     },
     "notifications": {
       "$uid": {
-        ".indexOn": ["createdAt"]
+        ".indexOn": [
+          "createdAt"
+        ]
       }
     },
     "coinLedger": {
       "$uid": {
-        ".indexOn": ["createdAt"]
+        ".indexOn": [
+          "createdAt"
+        ]
       }
+    },
+    "adminAuditRecent": {
+      ".indexOn": [
+        "serverAt"
+      ]
     }
   }
 }

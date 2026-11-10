@@ -5,23 +5,39 @@ import { useResource } from '../hooks'
 import { Badge, ErrorState, Field, FormError, Loading, Modal } from '../components'
 import { message } from '../lib'
 import { skillNames, skills, statusLabels } from '../domain'
-import type { ContentStatus, Difficulty, QuestionInput, QuestionRecord, SkillId } from '../domain'
+import type {
+  Catalog,
+  ContentStatus,
+  Difficulty,
+  QuestionInput,
+  QuestionRecord,
+  SkillId,
+} from '../domain'
 
 export function QuestionEditor({
   question,
   onClose,
+  catalogData,
 }: {
+  catalogData?: Catalog
   question?: QuestionRecord
   onClose: () => void
 }) {
   const { api, toast } = useAdmin(),
-    catalog = useResource(() => api.catalog()),
+    loadedCatalog = useResource(
+      () => (catalogData ? Promise.resolve(catalogData) : api.catalog()),
+      [catalogData],
+    ),
     [busy, setBusy] = useState(false),
     [readingFile, setReadingFile] = useState(false),
     [error, setError] = useState(''),
     [tab, setTab] = useState<'edit' | 'preview'>('edit'),
     [dirty, setDirty] = useState(false),
     [speaking, setSpeaking] = useState(false)
+  // Reuse the parent snapshot so reloading it cannot unmount draft inputs.
+  const catalog = catalogData
+    ? { data: catalogData, loading: false, error: '', reload: loadedCatalog.reload }
+    : loadedCatalog
   const [form, setForm] = useState<QuestionInput>(() =>
     question
       ? {
@@ -75,6 +91,10 @@ export function QuestionEditor({
   }
   const upload = async (file?: File) => {
     if (!file) return
+    if (api.mode !== 'demo') {
+      setError('Use an HTTPS audio URL. Storage upload is not available.')
+      return
+    }
     if (!file.type.startsWith('audio/')) {
       setError('Choose an audio file.')
       return
@@ -139,11 +159,7 @@ export function QuestionEditor({
           setError('')
           try {
             await api.saveQuestion(form, question?.id, question?.version)
-            toast(
-              question
-                ? 'New question version saved in the demo workspace.'
-                : 'Question added to the demo question bank.',
-            )
+            toast(question ? 'New question version saved.' : 'Question added.')
             onClose()
           } catch (e) {
             setError(message(e))
@@ -303,7 +319,7 @@ export function QuestionEditor({
                       <input
                         type="file"
                         accept="audio/*"
-                        disabled={readingFile}
+                        disabled={readingFile || api.mode !== 'demo'}
                         onChange={(e) => {
                           void upload(e.target.files?.[0])
                           e.target.value = ''
@@ -452,7 +468,11 @@ export function QuestionEditor({
         )}
         <div className="modal-footer">
           <span className="muted small-text">
-            {readingFile ? 'Reading audio file…' : 'Changes apply to local demo data only.'}
+            {readingFile
+              ? 'Reading audio file…'
+              : api.mode === 'demo'
+                ? 'Changes apply to local demo data only.'
+                : 'Changes are saved through Firebase API.'}
           </span>
           <button className="btn" type="button" disabled={busy || readingFile} onClick={close}>
             Cancel

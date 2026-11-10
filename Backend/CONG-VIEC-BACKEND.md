@@ -1,5 +1,7 @@
 # Danh sách công việc backend — English Battle
 
+> Cập nhật triển khai admin 01/11/2026: [ADMIN-API.md](functions/ADMIN-API.md). Đã export 21 callable admin và kiểm thử local; checklist 25/10 dưới đây là tài liệu lịch sử, chưa cập nhật toàn bộ trạng thái BE1/BE2. Engine battle/cloud deployment vẫn ngoài phần admin đã kiểm chứng.
+
 Cập nhật: 25/10/2026. Đây là checklist triển khai tiếp theo, chưa phải backend đã hoạt động. Các ô chưa đánh dấu là việc còn phải làm hoặc kiểm chứng khi tích hợp.
 
 ## Phạm vi và hiện trạng

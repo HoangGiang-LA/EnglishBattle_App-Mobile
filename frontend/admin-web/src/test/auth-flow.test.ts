@@ -22,18 +22,18 @@ beforeEach(() => {
   mocks.verify.mockResolvedValue(undefined)
 })
 
-describe('BE1 provisioning ownership and admin HTTP authorization', () => {
-  it('awaits Callable provisioning before checking the HTTP admin session', async () => {
+describe('existing admin HTTP authorization', () => {
+  it('checks the HTTP admin session without calling provisioning Functions', async () => {
     const session = await authGateway.refresh()
     expect(session?.isAdmin).toBe(true)
-    expect(mocks.provision).toHaveBeenCalledWith({})
+    expect(mocks.provision).not.toHaveBeenCalled()
     expect(mocks.verify).toHaveBeenCalledWith('test-token')
-    expect(mocks.provision.mock.invocationCallOrder[0]).toBeLessThan(mocks.verify.mock.invocationCallOrder[0])
   })
-  it('does not authorize if Callable provisioning fails', async () => {
+  it('does not depend on the provisioning service being available', async () => {
     mocks.provision.mockRejectedValueOnce(new Error('profile denied'))
-    await expect(authGateway.refresh()).rejects.toMatchObject({code: 'profile/unavailable'})
-    expect(mocks.verify).not.toHaveBeenCalled()
+    expect((await authGateway.refresh())?.isAdmin).toBe(true)
+    expect(mocks.verify).toHaveBeenCalledWith('test-token')
+    expect(mocks.provision).not.toHaveBeenCalled()
   })
   it('keeps non-admin users outside admin APIs', async () => {
     mocks.token.mockResolvedValueOnce({token: 'user-token', claims: {admin: false}})

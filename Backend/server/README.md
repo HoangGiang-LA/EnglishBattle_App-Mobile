@@ -17,7 +17,7 @@ implement learning/admin business APIs, or write RTDB records.
   token boolean admin claims, and `accountAccess/{uid}/status === active`.
 - BE1 owns profile defaults, wallets, settlement and rewards. HTTP authorization
   never creates, reactivates or changes those records.
-- Admin workspace business pages still use sample data (`MockAdminService`).
+- Admin workspace uses sample data only when VITE_ADMIN_DATA_SOURCE=mock. Firebase mode calls the 21 admin Callables; see [Admin API](../functions/ADMIN-API.md). This HTTP server still only verifies sessions.
 
 ## Local server setup
 

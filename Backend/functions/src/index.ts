@@ -40,3 +40,34 @@ export {advanceAttempt} from "./be1/practice/advanceAttempt";
 export {getAttemptResult} from "./be1/practice/getAttemptResult";
 export {leaveAttempt} from "./be1/practice/leaveAttempt";
 export {expireDailyAttempts} from "./be1/practice/expireDailyAttempts";
+
+// Authorized admin Callable API; HTTP remains session-verification only.
+export {
+  adminGetProfile,
+  adminUpdateProfile,
+  adminListUsers,
+  adminGetUser,
+  adminSaveUser,
+  adminSetUserStatus,
+} from "./admin/users";
+export {
+  adminGetCatalog,
+  adminListQuestions,
+  adminGetQuestion,
+  adminSaveQuestion,
+  adminArchiveQuestion,
+  adminSaveContent,
+} from "./admin/content";
+export {
+  adminListBattles,
+  adminGetBattle,
+  adminListActivities,
+  adminGetOverview,
+} from "./admin/monitoring";
+export {
+  adminListNotifications,
+  adminMarkNotificationsRead,
+  adminListAudit,
+  adminSearch,
+  adminExportReport,
+} from "./admin/reports";

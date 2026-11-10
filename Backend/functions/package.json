@@ -8,7 +8,9 @@
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "test": "npm run build && node --test test/unit.test.mjs",
+    "test:integration": "node --test --test-concurrency=1 --test-timeout=300000 test/admin.integration.test.mjs"
   },
   "engines": {
     "node": "24"

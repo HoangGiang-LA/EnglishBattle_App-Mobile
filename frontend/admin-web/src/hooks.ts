@@ -20,7 +20,10 @@ export function useResource<T>(loader: () => Promise<T>, deps: unknown[] = []) {
         if (generation.current === current) setData(value)
       })
       .catch((e) => {
-        if (generation.current === current) setError(message(e))
+        if (generation.current === current) {
+          setData(null)
+          setError(message(e))
+        }
       })
       .finally(() => {
         if (generation.current === current) setLoading(false)

@@ -14,6 +14,58 @@ function Invoke-Firebase {
     else { Invoke-Checked 'npx.cmd' (@('--yes', 'firebase-tools@15.34.2') + $args) }
 }
 
+
+# Keep emulator Java separate from Android Studio and the Windows default JVM.
+function Invoke-LocalJava21 {
+    param([scriptblock]$Action, [string]$JavaHome)
+    $candidates = @()
+    if ($JavaHome) { $candidates += $JavaHome }
+    else {
+        $candidates += $env:JAVA_HOME
+        $portableRoot = Join-Path $script:RepositoryRoot '.local\tools\jdk21'
+        $candidates += $portableRoot
+        if (Test-Path -LiteralPath $portableRoot) {
+            $candidates += @(Get-ChildItem -LiteralPath $portableRoot -Directory | ForEach-Object { $_.FullName })
+        }
+        foreach ($installRoot in @('C:\Program Files\Microsoft', 'C:\Program Files\Eclipse Adoptium', 'C:\Program Files\Java')) {
+            if (Test-Path -LiteralPath $installRoot) {
+                $candidates += @(Get-ChildItem -LiteralPath $installRoot -Directory -Filter '*21*' | ForEach-Object { $_.FullName })
+            }
+        }
+        $javaCommand = Get-Command java.exe -CommandType Application -ErrorAction SilentlyContinue
+        if ($javaCommand) { $candidates += Split-Path (Split-Path $javaCommand.Source -Parent) -Parent }
+    }
+    $selectedJava = $null
+    foreach ($candidate in ($candidates | Where-Object { $_ } | Select-Object -Unique)) {
+        $javaExe = Join-Path $candidate 'bin\java.exe'
+        $javacExe = Join-Path $candidate 'bin\javac.exe'
+        if (!(Test-Path -LiteralPath $javaExe) -or !(Test-Path -LiteralPath $javacExe)) { continue }
+        $releaseFile = Join-Path $candidate 'release'
+        if (!(Test-Path -LiteralPath $releaseFile) -or
+            !(Select-String -LiteralPath $releaseFile -Pattern '^JAVA_VERSION="21[.+-]' -Quiet)) { continue }
+        $javaVersion = @(& $javaExe '--version' 2>&1)
+        if ($LASTEXITCODE -eq 0 -and $javaVersion.Count -and [string]$javaVersion[0] -match '^(openjdk|java) 21[.\s]') {
+            $selectedJava = [IO.Path]::GetFullPath($candidate)
+            break
+        }
+    }
+    if (!$selectedJava) {
+        throw 'JDK 21 is required. Supply -JavaHome <JDK21 directory>, set JAVA_HOME, or extract JDK 21 into .local\tools\jdk21. Java 17/25/26 is not selected.'
+    }
+    $previousJavaHome = $env:JAVA_HOME
+    $previousPath = $env:PATH
+    try {
+        $env:JAVA_HOME = $selectedJava
+        $env:PATH = (Join-Path $selectedJava 'bin') + ';' + $previousPath
+        Write-Host "Local emulator JDK 21: $selectedJava"
+        & $Action
+    } finally {
+        $env:PATH = $previousPath
+        if ($null -eq $previousJavaHome) { Remove-Item -LiteralPath Env:\JAVA_HOME -ErrorAction SilentlyContinue }
+        else { $env:JAVA_HOME = $previousJavaHome }
+    }
+}
+
 function Invoke-LocalEnvironment {
     param([scriptblock]$Action)
     $settings = @{

@@ -65,6 +65,14 @@ export function useAdminAuth(loadGateway: () => Promise<AuthGateway> = loadAuthG
     }
   }, [loadGateway, revision])
 
+  useEffect(() => {
+    const lost = (event: Event) => {
+      setSession(null)
+      setError(authError((event as CustomEvent<unknown>).detail))
+    }
+    window.addEventListener('admin:access-lost', lost)
+    return () => window.removeEventListener('admin:access-lost', lost)
+  }, [])
   async function run(action: (api: AuthGateway) => Promise<void>) {
     if (running.current || !gateway.current) return
     running.current = true
@@ -95,6 +103,7 @@ export function useAdminAuth(loadGateway: () => Promise<AuthGateway> = loadAuthG
       }),
     refresh: () =>
       run(async (api) => {
+        if (mounted.current) setSession(null)
         const refreshed = await api.refresh()
         if (mounted.current) setSession(refreshed)
       }),

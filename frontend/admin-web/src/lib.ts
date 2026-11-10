@@ -62,5 +62,20 @@ export function downloadCsv(filename: string, columns: string[], rows: (string |
 export function validateEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 254
 }
-export const message = (e: unknown) =>
-  e instanceof Error ? e.message : 'Something went wrong. Please try again.'
+export const message = (e: unknown) => {
+  const code = typeof e === 'object' && e !== null && 'code' in e ? String(e.code) : ''
+  const messages: Record<string, string> = {
+    'functions/not-found':
+      'The admin API or requested record is unavailable. Check backend exports and refresh.',
+    'functions/unimplemented': 'This admin API has not been implemented by the backend.',
+    'functions/unavailable':
+      'Could not reach the Functions service. Check your connection and try again.',
+    'functions/aborted': 'This record changed. Refresh it before saving again.',
+    'functions/permission-denied':
+      'Administrator access was denied. Sign in again or contact your administrator.',
+    'functions/unauthenticated': 'Your session has expired. Sign in again.',
+  }
+  return (
+    messages[code] || (e instanceof Error ? e.message : 'Something went wrong. Please try again.')
+  )
+}

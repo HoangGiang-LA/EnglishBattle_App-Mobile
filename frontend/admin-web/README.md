@@ -1,3 +1,5 @@
+> Cập nhật tích hợp API: xem [ADMIN-API-INTEGRATION](../../docs/ADMIN-API-INTEGRATION.md). Nguồn mặc định là mock; chọn VITE_ADMIN_DATA_SOURCE=firebase để dùng adapter Callable. Backend đã export 21 callable admin và đã kiểm thử trên emulator; xem [backend API](../../Backend/functions/ADMIN-API.md). Battle/Analytics vẫn có thể báo thiếu nguồn battle; cloud chưa deploy. Không tự thay lỗi API bằng dữ liệu mẫu. Các mô tả dữ liệu mẫu bên dưới áp dụng khi chọn mock.
+
 # English Battle — Web admin
 
 Chạy bằng Spark/Emulator, không cần khóa thật: xem
@@ -5,7 +7,7 @@ Chạy bằng Spark/Emulator, không cần khóa thật: xem
 bật VITE_USE_FIREBASE_EMULATORS và kết nối cả Auth, Database, Functions tới loopback.
 Lệnh npm run dev thông thường vẫn dùng cấu hình Firebase hiện có nếu không bật flag.
 
-Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. Các trang nghiệp vụ vẫn dùng `MockAdminService`, chưa ghi dữ liệu quản trị lên Firebase.
+Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. Nguồn mock dùng MockAdminService; nguồn firebase gọi backend admin thật. Add User ở mode Firebase cần mật khẩu ban đầu riêng, chỉ tạo learner.
 
 ## Chạy trên máy của bạn
 
@@ -32,7 +34,7 @@ Cấu hình người dùng cung cấp nằm trong [`src/firebase/config.ts`](src
 2. Dùng tài khoản đã có trong **Authentication → Users**, hoặc tạo tài khoản thử tại đó. Nhập mật khẩu trực tiếp trên trang đăng nhập; không gửi mật khẩu vào chat hoặc file cấu hình.
 3. UID phải được provision qua BE1; người quản trị tin cậy cấp claim bằng công cụ trong `Backend/server`. Không có thao tác tự cấp admin từ web.
 4. Đăng nhập hoặc Refresh access: web chờ Callable `ensureUserProfile` rồi gửi ID token tới `/api/getAdminSession`. Server kiểm tra cả claim hiện tại, disabled và accountAccess.
-5. Quyền hợp lệ mới mở workspace. Các trang vẫn là dữ liệu mẫu, không phải Admin API thật.
+5. Quyền hợp lệ mới mở workspace. Nguồn mock dùng dữ liệu mẫu; nguồn firebase dùng Admin API; nguồn battle còn phụ thuộc engine.
 
 Phiên Firebase dùng `browserSessionPersistence`; ứng dụng không lưu mật khẩu. Có khôi phục phiên trong tab, đăng xuất và làm mới claim. Nếu báo `auth/unauthorized-domain`, kiểm tra Authorized domains của project.
 
@@ -58,7 +60,7 @@ Giữ rating và xu; không có XP/level, Premium, thanh toán hoặc doanh thu.
 
 ## Dữ liệu và giới hạn
 
-- Các trang quản trị vẫn dùng **dữ liệu mô phỏng**, kể cả bản `npm run build`. Firebase Auth, BE1 Callable và HTTP server xác minh quyền trước khi mở workspace; không có nút bỏ qua xác thực.
+- Với VITE_ADMIN_DATA_SOURCE=mock (mặc định), các trang quản trị dùng **dữ liệu mô phỏng**, kể cả bản `npm run build`. Firebase Auth, BE1 Callable và HTTP server xác minh quyền trước khi mở workspace; không có nút bỏ qua xác thực.
 - Dữ liệu nghiệp vụ mô phỏng lưu trong `localStorage` theo khóa `english-battle.admin.demo.v1`. Phiên đăng nhập do Firebase Auth quản lý bằng session persistence. Thao tác nghiệp vụ mô phỏng không tạo tài khoản hoặc thay đổi dữ liệu Firebase thật.
 - Mỗi trình duyệt có bộ dữ liệu riêng. Đăng xuất giữ dữ liệu; chọn menu tài khoản → **Profile & workspace → Reset demo data** và nhập `RESET` để khôi phục mẫu. Dữ liệu demo không phải cơ chế đồng bộ nhiều admin.
 - Người dùng bị xóa được ẩn và đổi thành “Deleted user” trong lịch sử demo. Chưa có tác động đến Firebase Auth hoặc phiên đang chạy trên điện thoại.

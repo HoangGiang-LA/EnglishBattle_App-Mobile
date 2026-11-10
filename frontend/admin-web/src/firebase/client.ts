@@ -11,7 +11,7 @@ import {
   type User,
 } from 'firebase/auth'
 import { connectDatabaseEmulator, getDatabase } from 'firebase/database'
-import { connectFunctionsEmulator, getFunctions, httpsCallable } from 'firebase/functions'
+import { connectFunctionsEmulator, getFunctions } from 'firebase/functions'
 import { environment } from './environment'
 import { sessionFromClaims, type AuthGateway, type FirebaseSession } from './auth'
 import { verifyAdminAccess } from './backend'
@@ -22,25 +22,19 @@ export const firebaseApp =
 export const firebaseAuth = getAuth(firebaseApp)
 // Creating the SDK instance does not grant access or read/write data.
 export const firebaseDatabase = getDatabase(firebaseApp)
-const functions = getFunctions(firebaseApp, 'asia-southeast1')
-if (environment.local) {
+export const firebaseFunctions = getFunctions(firebaseApp, 'asia-southeast1')
+const emulatorState = globalThis as typeof globalThis & { __adminEmulators?: Set<string> }
+const connected = (emulatorState.__adminEmulators ||= new Set<string>())
+if (environment.local && !connected.has(firebaseApp.name)) {
   connectAuthEmulator(firebaseAuth, 'http://127.0.0.1:9099')
   connectDatabaseEmulator(firebaseDatabase, '127.0.0.1', 9000)
-  connectFunctionsEmulator(functions, '127.0.0.1', 5001)
+  connectFunctionsEmulator(firebaseFunctions, '127.0.0.1', 5001)
+  connected.add(firebaseApp.name)
 }
-const ensureUserProfile = httpsCallable(functions, 'ensureUserProfile')
-
 async function session(user: User, refresh = false): Promise<FirebaseSession> {
   const token = await getIdTokenResult(user, refresh)
   if (token.claims.admin === true) {
-    // The BE1 Callable is the sole provisioning owner; HTTP only authorizes.
-    try {
-      await ensureUserProfile({})
-    } catch (error) {
-      if (typeof error === 'object' && error !== null && 'code' in error &&
-          ['functions/permission-denied', 'functions/unauthenticated'].includes(String(error.code))) throw error
-      throw { code: 'profile/unavailable', cause: error }
-    }
+    // Existing accounts are authorized read-only by the HTTP server.
     await verifyAdminAccess(token.token)
   }
   return sessionFromClaims(user, token.claims)

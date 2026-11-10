@@ -45,7 +45,11 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
     try {
       const report = await api.exportReport('questions', query, range)
       downloadCsv(report.filename, report.columns, report.rows)
-      toast('Demo question report exported with the current filters.')
+      toast(
+        api.mode === 'demo'
+          ? 'Demo question report exported with the current filters.'
+          : 'Question report exported with the current filters.',
+      )
     } catch (e) {
       toast(message(e), true)
     } finally {
@@ -148,6 +152,7 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
         {(isQuestions || tab !== 'skills') && (
           <button
             className="btn btn-primary"
+            disabled={catalog.loading || !!catalog.error}
             onClick={() =>
               isQuestions
                 ? setEditor('new')
@@ -218,6 +223,7 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
           </button>
         </div>
       )}
+      {isQuestions && catalog.error && <ErrorState error={catalog.error} retry={catalog.reload} />}
       {isQuestions ? (
         <section className="panel data-panel">
           <div className="panel-heading">
@@ -407,11 +413,12 @@ export function ContentPage({ initialSearch = '' }: { initialSearch?: string }) 
       )}
       <p className="metrics-note">
         <BookOpen size={13} />
-        Question edits create a new version in this demo. Archived content stays available for
-        historical references.
+        Question edits create a new version. Archived content stays available for historical
+        references.
       </p>
       {editor && (
         <QuestionEditor
+          catalogData={catalog.data || undefined}
           question={editor === 'new' ? undefined : editor}
           onClose={() => setEditor(null)}
         />
@@ -438,7 +445,7 @@ function ArchiveDialog({ question, onClose }: { question: QuestionRecord; onClos
         <p>{question.prompt}</p>
         <p className="info-note">
           This question will no longer be available for new sessions. Its previous version is
-          retained in the local demo history.
+          retained for existing sessions.
         </p>
         <FormError error={error} />
       </div>
@@ -450,10 +457,15 @@ function ArchiveDialog({ question, onClose }: { question: QuestionRecord; onClos
           className="btn btn-danger"
           disabled={busy}
           onClick={async () => {
+            if (busy) return
             setBusy(true)
             try {
               await api.archiveQuestion(question.id, question.version)
-              toast('Question archived in the demo workspace.')
+              toast(
+                api.mode === 'demo'
+                  ? 'Question archived in the demo workspace.'
+                  : 'Question archived.',
+              )
               onClose()
             } catch (e) {
               setError(message(e))
@@ -499,7 +511,9 @@ function ContentEditor({ input, onClose }: { input: ContentInput; onClose: () =>
           setError('')
           try {
             await api.saveContent(form)
-            toast(`${kind[0].toUpperCase() + kind.slice(1)} saved in the demo workspace.`)
+            toast(
+              `${kind[0].toUpperCase() + kind.slice(1)} saved${api.mode === 'demo' ? ' in the demo workspace' : ''}.`,
+            )
             onClose()
           } catch (e) {
             setError(message(e))

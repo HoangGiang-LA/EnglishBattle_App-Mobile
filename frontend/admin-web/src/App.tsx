@@ -22,7 +22,8 @@ import {
   X,
 } from 'lucide-react'
 import type { AdminService, PageId } from './domain'
-import { MockAdminService, service } from './data/mock-service'
+import { MockAdminService } from './data/mock-service'
+import { service } from './data/service'
 import { AdminContext } from './context'
 import { useDebounced, useResource, useRoute } from './hooks'
 import { Avatar, Empty, ErrorState, Field, FormError, Loading, Modal } from './components'
@@ -242,7 +243,7 @@ function AdminWorkspace({
           <div className="sidebar-bottom">
             <span className="system-status">
               <i />
-              Demo services ready
+              {api.mode === 'demo' ? 'Demo services ready' : 'Firebase API'}
             </span>
             <button className="sidebar-account" onClick={() => setPanel('profile')}>
               <Avatar name={name} />
@@ -271,11 +272,15 @@ function AdminWorkspace({
             <button
               className="demo-indicator"
               aria-label="Preview details"
-              title="Demo workspace · Local sample data · No live admin data"
+              title={
+                api.mode === 'demo'
+                  ? 'Demo workspace · Local sample data · No live admin data'
+                  : 'Firebase Callable API'
+              }
               onClick={() => setPanel('help')}
             >
               <FlaskConical size={13} />
-              <span>Demo workspace</span>
+              <span>{api.mode === 'demo' ? 'Demo workspace' : 'Firebase workspace'}</span>
             </button>
             <div className="header-actions">
               <div className="global-search">
@@ -357,13 +362,20 @@ function AdminWorkspace({
                   </h3>
                   <button
                     className="text-btn"
-                    onClick={() => api.readNotifications().catch((e) => toast(message(e), true))}
+                    onClick={() =>
+                      api
+                        .readNotifications()
+                        .then(notifications.reload)
+                        .catch((e) => toast(message(e), true))
+                    }
                   >
                     Mark all read
                   </button>
                 </div>
-                {notifications.error ? (
-                  <p role="alert">{notifications.error}</p>
+                {notifications.loading ? (
+                  <Loading />
+                ) : notifications.error ? (
+                  <ErrorState error={notifications.error} retry={notifications.reload} />
                 ) : !notifications.data?.length ? (
                   <p>You’re all caught up.</p>
                 ) : (
@@ -374,6 +386,7 @@ function AdminWorkspace({
                       onClick={async () => {
                         try {
                           await api.readNotifications(n.id)
+                          notifications.reload()
                           go(`/${n.page}`)
                         } catch (e) {
                           toast(message(e), true)
@@ -432,7 +445,9 @@ function AdminWorkspace({
           )}
           {!online && (
             <div className="offline-banner" role="status">
-              You’re offline. This demo continues to use data saved in your browser.
+              {api.mode === 'demo'
+                ? 'You’re offline. This demo continues to use data saved in your browser.'
+                : 'You’re offline. Reconnect before requesting Firebase data.'}
             </div>
           )}
           {api instanceof MockAdminService && api.storageWarning && (
@@ -491,7 +506,17 @@ function AdminWorkspace({
           </button>
         </div>
       )}
-      {panel === 'profile' && (
+      {panel === 'profile' && profile.loading && (
+        <Modal title="Profile & workspace" onClose={() => setPanel(null)}>
+          <Loading />
+        </Modal>
+      )}
+      {panel === 'profile' && profile.error && (
+        <Modal title="Profile & workspace" onClose={() => setPanel(null)}>
+          <ErrorState error={profile.error} retry={profile.reload} />
+        </Modal>
+      )}
+      {panel === 'profile' && !profile.loading && !profile.error && (
         <ProfileDialog
           api={api}
           name={profile.data?.name || name}
@@ -501,7 +526,15 @@ function AdminWorkspace({
         />
       )}
       {panel === 'audit' && <AuditDialog api={api} onClose={() => setPanel(null)} />}
-      {panel === 'help' && (
+      {panel === 'help' && api.mode === 'firebase' && (
+        <Modal title="Firebase API" onClose={() => setPanel(null)}>
+          <p>
+            Business data uses Firebase Callable APIs. Missing backend functions are shown as
+            errors; sample data is never substituted.
+          </p>
+        </Modal>
+      )}
+      {panel === 'help' && api.mode === 'demo' && (
         <Modal
           title="About this preview"
           subtitle="Verified admin access · Sample business data"
@@ -557,7 +590,9 @@ function AdminWorkspace({
           </div>
         </Modal>
       )}
-      {panel === 'reset' && <ResetDialog api={api} onClose={() => setPanel(null)} />}
+      {panel === 'reset' && api.mode === 'demo' && (
+        <ResetDialog api={api} onClose={() => setPanel(null)} />
+      )}
     </AdminContext.Provider>
   )
 }
@@ -581,7 +616,7 @@ function ProfileDialog({
   return (
     <Modal
       title="Profile & workspace"
-      subtitle="Demo administrator profile"
+      subtitle={api.mode === 'demo' ? 'Demo administrator profile' : 'Administrator profile'}
       onClose={onClose}
       busy={busy}
     >
@@ -605,7 +640,9 @@ function ProfileDialog({
             <Avatar name={value} />
             <span>
               <strong>{value}</strong>
-              <small>Administrator · Demo access</small>
+              <small>
+                Administrator · {api.mode === 'demo' ? 'Demo access' : 'Firebase access'}
+              </small>
             </span>
           </div>
           <Field label="Display name">
@@ -617,20 +654,19 @@ function ProfileDialog({
               maxLength={80}
             />
           </Field>
-          <Field
-            label="Email address"
-            hint="Authentication and email changes will be connected to Firebase later."
-          >
+          <Field label="Email address" hint="Email is read-only in this form.">
             <input value={email} disabled />
           </Field>
           <FormError error={error} />
-          <div className="reset-area">
-            <strong>Demo data</strong>
-            <p>Restore sample users, content and activity in this browser.</p>
-            <button type="button" className="btn btn-danger-outline" onClick={onReset}>
-              Reset demo data
-            </button>
-          </div>
+          {api.mode === 'demo' && (
+            <div className="reset-area">
+              <strong>Demo data</strong>
+              <p>Restore sample users, content and activity in this browser.</p>
+              <button type="button" className="btn btn-danger-outline" onClick={onReset}>
+                Reset demo data
+              </button>
+            </div>
+          )}
         </div>
         <div className="modal-footer">
           <button type="button" className="btn" disabled={busy} onClick={onClose}>
@@ -693,13 +729,19 @@ function AuditDialog({ api, onClose }: { api: AdminService; onClose: () => void 
   return (
     <Modal
       title="Admin activity log"
-      subtitle="The most recent 200 changes in this demo workspace"
+      subtitle={
+        api.mode === 'demo'
+          ? 'The most recent 200 changes in this demo workspace'
+          : 'Recent administration changes'
+      }
       onClose={onClose}
       wide
     >
       <div className="modal-body">
-        {audit.error ? (
-          <p role="alert">{audit.error}</p>
+        {audit.loading ? (
+          <Loading />
+        ) : audit.error ? (
+          <ErrorState error={audit.error} retry={audit.reload} />
         ) : !audit.data?.length ? (
           <Empty
             title="No admin changes yet"

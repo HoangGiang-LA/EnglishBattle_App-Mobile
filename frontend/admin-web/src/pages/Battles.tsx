@@ -32,7 +32,7 @@ export function BattlesPage({ initialSearch = '' }: { initialSearch?: string }) 
     try {
       const r = await api.exportReport('battles', query, range)
       downloadCsv(r.filename, r.columns, r.rows)
-      toast('Filtered demo matches exported.')
+      toast(api.mode === 'demo' ? 'Filtered demo matches exported.' : 'Filtered matches exported.')
     } catch (e) {
       toast(message(e), true)
     } finally {

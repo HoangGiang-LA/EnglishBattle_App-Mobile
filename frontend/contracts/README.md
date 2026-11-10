@@ -1,11 +1,13 @@
-# Hợp đồng tích hợp v1 — chưa có backend
+# Hợp đồng tích hợp v1
 
 - `business-rules.v1.json`: chính sách đã chốt và các mặc định triển khai được ghi riêng.
 - `mobile.v1.mjs`: JSON Schema cho request/response của 13 callable Android; không chứa code xử lý server.
 - `admin.v1.json`: ánh xạ 22 phương thức AdminService, gồm 21 callable đề xuất và một `reset` chỉ dùng demo. Kiểu payload đầy đủ tiếp tục lấy từ `admin-web/src/domain.ts`.
 - `database.rules.proposed.json`: Rules client để kiểm thử bằng emulator, **chưa deploy**.
 
-Giữ nguyên UI theo Figma. Backend triển khai đúng model/interface để thay repository/service phía dưới. Các tên callable admin là đề xuất đã ghi thành file, chưa có adapter thật hoặc function được export.
+Giữ nguyên UI theo Figma. Backend triển khai đúng model/interface để thay repository/service phía dưới. Các tên callable admin là đề xuất đã ghi thành file, đã có adapter FirebaseAdminService và 21 admin Callable được export, kiểm thử emulator; xem Backend/functions/ADMIN-API.md.
+
+> Admin API mới: [tài liệu backend](../../Backend/functions/ADMIN-API.md). UserInput.password bắt buộc riêng khi admin tạo learner; không gửi password khi sửa. Cloud chưa deploy.
 
 ## Quy tắc đã xác nhận ngày 25/10/2026
 

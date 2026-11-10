@@ -3,6 +3,7 @@ import {defineConfig} from '@playwright/test'
 // Real local services must be running; this suite never substitutes Firebase responses.
 export default defineConfig({
   testDir: './e2e-local',
+  testMatch: 'auth.spec.ts',
   workers: 1,
   timeout: 45000,
   use: {

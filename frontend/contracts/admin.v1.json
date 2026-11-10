@@ -4,36 +4,178 @@
   "transport": "firebase-callable",
   "requires": "Firebase Auth token, admin === true and active accountAccess checked by server",
   "timestampUnit": "epoch_milliseconds",
-  "responseEnvelope": ["serverNow", "payloadKey"],
+  "responseEnvelope": [
+    "serverNow",
+    "payloadKey"
+  ],
   "methods": {
-    "profile": {"callable": "adminGetProfile", "request": [], "payloadKey": "profile"},
-    "saveProfile": {"callable": "adminUpdateProfile", "request": ["name", "requestId"], "payloadKey": "profile"},
-    "overview": {"callable": "adminGetOverview", "request": ["range", "categoryId?"], "payloadKey": "overview"},
-    "users": {"callable": "adminListUsers", "request": ["query"], "payloadKey": "page"},
-    "user": {"callable": "adminGetUser", "request": ["id"], "payloadKey": "user"},
-    "saveUser": {"callable": "adminSaveUser", "request": ["input", "id?", "requestId"], "payloadKey": "user"},
-    "setUserStatus": {"callable": "adminSetUserStatus", "request": ["id", "status", "reason", "requestId"], "payloadKey": null},
-    "questions": {"callable": "adminListQuestions", "request": ["query"], "payloadKey": "page"},
-    "question": {"callable": "adminGetQuestion", "request": ["id"], "payloadKey": "question"},
-    "saveQuestion": {"callable": "adminSaveQuestion", "request": ["input", "id?", "expectedVersion?", "requestId"], "payloadKey": "question"},
-    "archiveQuestion": {"callable": "adminArchiveQuestion", "request": ["id", "expectedVersion", "requestId"], "payloadKey": null},
-    "catalog": {"callable": "adminGetCatalog", "request": [], "payloadKey": "catalog"},
-    "saveContent": {"callable": "adminSaveContent", "request": ["input", "requestId"], "payloadKey": null},
-    "battles": {"callable": "adminListBattles", "request": ["query"], "payloadKey": "page"},
-    "battle": {"callable": "adminGetBattle", "request": ["id"], "payloadKey": "detail"},
-    "activities": {"callable": "adminListActivities", "request": ["query"], "payloadKey": "page"},
-    "search": {"callable": "adminSearch", "request": ["q"], "payloadKey": "items"},
-    "notifications": {"callable": "adminListNotifications", "request": [], "payloadKey": "items"},
-    "readNotifications": {"callable": "adminMarkNotificationsRead", "request": ["id?", "requestId"], "payloadKey": null},
-    "audit": {"callable": "adminListAudit", "request": ["query?"], "payloadKey": "items"},
-    "exportReport": {"callable": "adminExportReport", "request": ["kind", "query", "range"], "payloadKey": "report"},
-    "reset": {"demoOnly": true}
+    "profile": {
+      "callable": "adminGetProfile",
+      "request": [],
+      "payloadKey": "profile"
+    },
+    "saveProfile": {
+      "callable": "adminUpdateProfile",
+      "request": [
+        "name",
+        "requestId"
+      ],
+      "payloadKey": "profile"
+    },
+    "overview": {
+      "callable": "adminGetOverview",
+      "request": [
+        "range",
+        "categoryId?"
+      ],
+      "payloadKey": "overview"
+    },
+    "users": {
+      "callable": "adminListUsers",
+      "request": [
+        "query"
+      ],
+      "payloadKey": "page"
+    },
+    "user": {
+      "callable": "adminGetUser",
+      "request": [
+        "id"
+      ],
+      "payloadKey": "user"
+    },
+    "saveUser": {
+      "callable": "adminSaveUser",
+      "request": [
+        "input",
+        "id?",
+        "requestId"
+      ],
+      "payloadKey": "user"
+    },
+    "setUserStatus": {
+      "callable": "adminSetUserStatus",
+      "request": [
+        "id",
+        "status",
+        "reason",
+        "requestId"
+      ],
+      "payloadKey": null
+    },
+    "questions": {
+      "callable": "adminListQuestions",
+      "request": [
+        "query"
+      ],
+      "payloadKey": "page"
+    },
+    "question": {
+      "callable": "adminGetQuestion",
+      "request": [
+        "id"
+      ],
+      "payloadKey": "question"
+    },
+    "saveQuestion": {
+      "callable": "adminSaveQuestion",
+      "request": [
+        "input",
+        "id?",
+        "expectedVersion?",
+        "requestId"
+      ],
+      "payloadKey": "question"
+    },
+    "archiveQuestion": {
+      "callable": "adminArchiveQuestion",
+      "request": [
+        "id",
+        "expectedVersion",
+        "requestId"
+      ],
+      "payloadKey": null
+    },
+    "catalog": {
+      "callable": "adminGetCatalog",
+      "request": [],
+      "payloadKey": "catalog"
+    },
+    "saveContent": {
+      "callable": "adminSaveContent",
+      "request": [
+        "input",
+        "requestId"
+      ],
+      "payloadKey": null
+    },
+    "battles": {
+      "callable": "adminListBattles",
+      "request": [
+        "query"
+      ],
+      "payloadKey": "page"
+    },
+    "battle": {
+      "callable": "adminGetBattle",
+      "request": [
+        "id"
+      ],
+      "payloadKey": "detail"
+    },
+    "activities": {
+      "callable": "adminListActivities",
+      "request": [
+        "query"
+      ],
+      "payloadKey": "page"
+    },
+    "search": {
+      "callable": "adminSearch",
+      "request": [
+        "q"
+      ],
+      "payloadKey": "items"
+    },
+    "notifications": {
+      "callable": "adminListNotifications",
+      "request": [],
+      "payloadKey": "items"
+    },
+    "readNotifications": {
+      "callable": "adminMarkNotificationsRead",
+      "request": [
+        "id?",
+        "requestId"
+      ],
+      "payloadKey": null
+    },
+    "audit": {
+      "callable": "adminListAudit",
+      "request": [
+        "query?"
+      ],
+      "payloadKey": "items"
+    },
+    "exportReport": {
+      "callable": "adminExportReport",
+      "request": [
+        "kind",
+        "query",
+        "range"
+      ],
+      "payloadKey": "report"
+    },
+    "reset": {
+      "demoOnly": true
+    }
   },
   "mapping": {
     "questionVersion": "Admin integer 1 corresponds to RTDB currentVersion v1; immutable questionVersions/id/v1 and questionAnswers/id/v1",
     "options": "Admin array of {id,text} maps to RTDB keyed options {optionId:{text,order}}",
     "ongoingBattle": "Public admin status ongoing maps from authoritative playing/reconnecting states; do not expose pending opponent answers",
     "privateContent": "Admin question/answer payloads are returned only by authorized API, not public catalog reads",
-    "pagination": "Page numbers require bounded server snapshots/indexes; cursor adapters may maintain cursor history without downloading the root"
+    "pagination": "Page numbers require bounded server snapshots/indexes; cursor adapters may maintain cursor history without downloading the root",
+    "userCreation": "adminSaveUser input.password is required only when id is omitted; 12-128 characters, upper/lowercase, number and symbol; no admin grant or email sending. Edit rejects password."
   }
 }

@@ -289,16 +289,23 @@ function UserEditor({
   const { api, toast } = useAdmin(),
     [name, setName] = useState(user?.name || ''),
     [email, setEmail] = useState(user?.email || ''),
+    [password, setPassword] = useState(''),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('')
-  const dirty = name !== (user?.name || '') || email !== (user?.email || ''),
+  const dirty = name !== (user?.name || '') || email !== (user?.email || '') || !!password,
     close = () => {
       if (!dirty || window.confirm('Discard unsaved user changes?')) onClose()
     }
   return (
     <Modal
       title={user ? 'Edit user' : 'Add user'}
-      subtitle={user ? `${user.code} · Account details` : 'Add a learner to the demo workspace'}
+      subtitle={
+        user
+          ? `${user.code} · Account details`
+          : api.mode === 'demo'
+            ? 'Add a learner to the demo workspace'
+            : 'Add a learner'
+      }
       onClose={close}
       busy={busy}
     >
@@ -309,11 +316,18 @@ function UserEditor({
           setBusy(true)
           setError('')
           try {
-            await api.saveUser({ name, email }, user?.id)
+            await api.saveUser(
+              { name, email, ...(!user && api.mode === 'firebase' ? { password } : {}) },
+              user?.id,
+            )
             toast(
               user
-                ? 'Demo user updated.'
-                : 'Demo user added. Firebase Authentication was not changed.',
+                ? api.mode === 'demo'
+                  ? 'Demo user updated.'
+                  : 'User updated.'
+                : api.mode === 'demo'
+                  ? 'Demo user added. Firebase Authentication was not changed.'
+                  : 'User saved through Firebase API.',
             )
             onClose()
           } catch (e) {
@@ -344,9 +358,26 @@ function UserEditor({
               autoComplete="off"
             />
           </Field>
+          {!user && api.mode === 'firebase' && (
+            <Field
+              label="Initial password"
+              hint="12–128 characters with uppercase, lowercase, a number and a symbol. Share it securely with the learner."
+            >
+              <input
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={12}
+                maxLength={128}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </Field>
+          )}
           <p className="info-note">
-            Demo changes are local. Real account creation, email updates and access control require
-            a backend connected to Firebase Auth.
+            {api.mode === 'demo'
+              ? 'Demo changes are local. Real account creation, email updates and access control require a backend connected to Firebase Auth.'
+              : 'The server validates account changes. Rating, coins and admin permissions cannot be edited here.'}
           </p>
           <FormError error={error} />
           {user && (
@@ -419,7 +450,7 @@ function AccountAction({
           setError('')
           try {
             await api.setUserStatus(user.id, status, reason)
-            toast(`${title}: demo account updated.`)
+            toast(`${title}: ${api.mode === 'demo' ? 'demo account' : 'account'} updated.`)
             onClose()
           } catch (e) {
             setError(message(e))
@@ -430,11 +461,13 @@ function AccountAction({
       >
         <div className="modal-body">
           <p>
-            {deleting
-              ? 'The demo account will be removed from the user list. Historical records remain linked to an anonymized user.'
-              : status === 'banned'
-                ? 'The account will be marked as banned in this local preview.'
-                : 'The account will be marked as active in this local preview.'}
+            {api.mode === 'firebase'
+              ? 'The server will apply this account access change and record the reason.'
+              : deleting
+                ? 'The demo account will be removed from the user list. Historical records remain linked to an anonymized user.'
+                : status === 'banned'
+                  ? 'The account will be marked as banned in this local preview.'
+                  : 'The account will be marked as active in this local preview.'}
           </p>
           <Field label="Reason">
             <textarea

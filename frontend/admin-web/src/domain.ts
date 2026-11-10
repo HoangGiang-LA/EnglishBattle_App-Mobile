@@ -190,7 +190,7 @@ export type QuestionInput = Omit<
   QuestionRecord,
   'id' | 'code' | 'version' | 'createdAt' | 'updatedAt'
 >
-export type UserInput = Pick<UserRecord, 'name' | 'email'>
+export type UserInput = Pick<UserRecord, 'name' | 'email'> & { password?: string }
 export type ContentInput = {
   kind: 'category' | 'topic' | 'lesson'
   id?: string
@@ -204,7 +204,7 @@ export type ContentInput = {
 
 /** Server adapters must implement these methods with bounded, authorized APIs. */
 export interface AdminService {
-  readonly mode: 'demo'
+  readonly mode: 'demo' | 'firebase'
   profile(): Promise<AdminProfile>
   saveProfile(name: string): Promise<AdminProfile>
   overview(range: DateRange, categoryId?: string): Promise<Overview>
