@@ -1,6 +1,11 @@
 package com.englishbattle.app.data
 
 import com.englishbattle.app.BuildConfig
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
+import androidx.credentials.exceptions.GetCredentialUnsupportedException
+import androidx.credentials.exceptions.NoCredentialException
+import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.FirebaseTooManyRequestsException
 import com.google.firebase.auth.*
@@ -16,6 +21,8 @@ import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 
 class FirebaseAuthRepository(private val auth: FirebaseAuth = FirebaseAuth.getInstance()) : AuthRepository {
+    private data class PendingGoogleLink(val email: String, val credential: AuthCredential)
+    private var pendingGoogleLink: PendingGoogleLink? = null
     private val profileUpdates = MutableStateFlow(0)
     private fun identity() = auth.currentUser?.let {
         UserIdentity(it.uid, it.displayName?.takeIf(String::isNotBlank) ?: "Người học", it.email.orEmpty(), it.metadata?.creationTimestamp ?: 0)
@@ -26,8 +33,44 @@ class FirebaseAuthRepository(private val auth: FirebaseAuth = FirebaseAuth.getIn
         awaitClose { auth.removeAuthStateListener(listener) }
     }
     override val users: Flow<UserIdentity?> = combine(authUsers, profileUpdates) { _, _ -> identity() }.distinctUntilChanged()
-    override suspend fun signIn(email: String, password: String) { withTimeout(20_000) { auth.signInWithEmailAndPassword(email, password).await() } }
+    override suspend fun signIn(email: String, password: String) {
+        withTimeout(20_000) {
+            val user = auth.signInWithEmailAndPassword(email, password).await().user
+                ?: throw UserFacingException("Không đăng nhập được tài khoản. Vui lòng thử lại.")
+            val pending = pendingGoogleLink
+            if (pending != null && user.email.equals(pending.email, ignoreCase = true) &&
+                user.providerData.none { it.providerId == GoogleAuthProvider.PROVIDER_ID }) {
+                try {
+                    user.linkWithCredential(pending.credential).await()
+                } catch (error: Exception) {
+                    auth.signOut()
+                    if (error is FirebaseAuthInvalidCredentialsException) {
+                        pendingGoogleLink = null
+                        throw UserFacingException("Phiên Google đã hết hiệu lực. Bấm Đăng nhập với Google để thử lại.")
+                    }
+                    throw error
+                }
+            }
+            pendingGoogleLink = null
+        }
+    }
+    override suspend fun signInWithGoogle(idToken: String) {
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+        pendingGoogleLink = null
+        withTimeout(20_000) {
+            try {
+                auth.signInWithCredential(credential).await()
+            } catch (error: FirebaseAuthUserCollisionException) {
+                if (error.errorCode != "ERROR_ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL") throw error
+                error.email?.let { email ->
+                    pendingGoogleLink = PendingGoogleLink(email, error.updatedCredential ?: credential)
+                }
+                throw UserFacingException("Email này đã có tài khoản. Hãy đăng nhập bằng email và mật khẩu cùng tài khoản để liên kết Google.")
+            }
+        }
+    }
     override suspend fun signUp(name: String, email: String, password: String) {
+        pendingGoogleLink = null
         if (!PasswordPolicy.isValid(password)) throw UserFacingException(PasswordPolicy.MESSAGE)
         withTimeout(20_000) {
             val user = auth.createUserWithEmailAndPassword(email, password).await().user ?: throw UserFacingException("Không tạo được tài khoản. Vui lòng thử lại.")
@@ -47,6 +90,9 @@ class FirebaseAuthRepository(private val auth: FirebaseAuth = FirebaseAuth.getIn
     override suspend fun changeEmail(email: String, currentPassword: String) {
         withTimeout(20_000) {
             val user = auth.currentUser ?: throw UserFacingException("Vui lòng đăng nhập lại.")
+            if (user.providerData.none { it.providerId == EmailAuthProvider.PROVIDER_ID }) {
+                throw UserFacingException("Thay đổi email tại đây yêu cầu tài khoản có phương thức đăng nhập bằng mật khẩu.")
+            }
             user.reauthenticate(EmailAuthProvider.getCredential(user.email.orEmpty(), currentPassword)).await()
             user.verifyBeforeUpdateEmail(email).await()
         }
@@ -58,7 +104,10 @@ class FirebaseAuthRepository(private val auth: FirebaseAuth = FirebaseAuth.getIn
             profileUpdates.value++
         }
     }
-    override fun signOut() = auth.signOut()
+    override fun signOut() {
+        pendingGoogleLink = null
+        auth.signOut()
+    }
 }
 
 class FirebaseCatalogRepository(private val db: FirebaseDatabase) : CatalogRepository {
@@ -110,7 +159,8 @@ class ServerClock {
 class FirebaseGameRepository(private val clock: ServerClock,
     private val functions: FirebaseFunctions = FirebaseFunctions.getInstance("asia-southeast1").apply {
         if (BuildConfig.USE_FUNCTIONS_EMULATOR) useEmulator("10.0.2.2", 5001)
-    }, private val auth: FirebaseAuth = FirebaseAuth.getInstance()) : GameRepository {
+    }, private val auth: FirebaseAuth = FirebaseAuth.getInstance(),
+    private val apiBaseUrl: String? = null) : GameRepository {
     private val clientSessionId by lazy {
         val prefs = com.google.firebase.FirebaseApp.getInstance().applicationContext
             .getSharedPreferences("english_battle_device", android.content.Context.MODE_PRIVATE)
@@ -138,7 +188,10 @@ class FirebaseGameRepository(private val clock: ServerClock,
                 else -> data
             }
             val response = try {
-                val callable = if (learning) functions.getHttpsCallable("learningAttempt") else functions.getHttpsCallable(name)
+                val endpoint = if (learning) "learningAttempt" else name
+                val callable = if (apiBaseUrl != null)
+                    functions.getHttpsCallableFromUrl(java.net.URL("${apiBaseUrl.trimEnd('/')}/$endpoint"))
+                else functions.getHttpsCallable(endpoint)
                 if (timeoutMs != 20_000L)
                     callable.setTimeout(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
                 callable.call(request).await().data
@@ -204,6 +257,11 @@ fun friendlyError(error: Throwable): String {
         is UserFacingException -> error.message.orEmpty()
         is FirebaseNetworkException, is TimeoutCancellationException -> "Kết nối bị gián đoạn hoặc phản hồi quá lâu. Kiểm tra mạng và thử lại."
         is FirebaseTooManyRequestsException -> "Bạn thao tác quá nhiều lần. Vui lòng đợi một lúc rồi thử lại."
+        is NoCredentialException -> "Chưa tìm thấy tài khoản Google. Hãy thêm tài khoản Google trong Cài đặt của thiết bị rồi thử lại."
+        is GetCredentialProviderConfigurationException, is GetCredentialUnsupportedException ->
+            "Thiết bị chưa hỗ trợ đăng nhập Google. Vui lòng kiểm tra hoặc cập nhật Google Play services."
+        is GetCredentialException, is GoogleIdTokenParsingException ->
+            "Chưa đăng nhập được Google. Kiểm tra kết nối và thử lại."
         is FirebaseAuthWeakPasswordException -> PasswordPolicy.MESSAGE
         is FirebaseAuthUserCollisionException -> "Email đã được sử dụng. Hãy đăng nhập hoặc đặt lại mật khẩu."
         is FirebaseAuthInvalidCredentialsException, is FirebaseAuthInvalidUserException -> "Email hoặc mật khẩu không đúng, hoặc tài khoản không còn khả dụng."

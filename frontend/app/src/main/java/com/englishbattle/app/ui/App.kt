@@ -67,7 +67,7 @@ enum class Route { Splash, Login, Register, Forgot, Home, Challenge, Practice, V
                 BackHandler(route !in listOf(Route.Splash, Route.Login)) { if (!authState.busy) { auth.dismiss(); route = Route.Login } }
                 if (route == Route.Splash) SplashScreen { route = Route.Login }
                 else AuthScreen(route, authState, { auth.dismiss(); route = it }, { route = Route.Login },
-                    auth::submit, auth::reset, auth::dismiss)
+                    auth::submit, auth::reset, auth::dismiss, { auth.signInWithGoogle(context) })
             } else if (!ready) {
                 Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     val error = accessState.error?.takeIf { accessState.key == sessionKey }

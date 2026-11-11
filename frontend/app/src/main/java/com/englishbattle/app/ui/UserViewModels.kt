@@ -5,6 +5,9 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.util.Log
+import androidx.credentials.exceptions.ClearCredentialException
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.englishbattle.app.EnglishBattleApplication
@@ -20,12 +23,14 @@ import java.util.UUID
 data class AuthState(val user: UserIdentity? = null,
     val busy: Boolean = false, val initializing: Boolean = true, val error: String? = null, val message: String? = null)
 class AuthViewModel(app: Application, private val repository: AuthRepository,
-    private val synchronizeProfile: suspend () -> Unit) : AndroidViewModel(app) {
+    private val synchronizeProfile: suspend () -> Unit,
+    private val googleClient: GoogleAuthClient? = null) : AndroidViewModel(app) {
     constructor(app: Application) : this(app, (app as EnglishBattleApplication).container.auth,
         { app.container.game.ensureProfile() })
     private val _state = MutableStateFlow(AuthState())
     val state = _state.asStateFlow()
     private var latestFirebaseUser: UserIdentity? = null
+    private val googleSignInClient by lazy { googleClient ?: GoogleSignInClient(app) }
     init {
         viewModelScope.launch { repository.users.collect { user ->
             latestFirebaseUser = user
@@ -36,12 +41,17 @@ class AuthViewModel(app: Application, private val repository: AuthRepository,
         if (_state.value.busy) return
         _state.update { it.copy(busy = true, error = null, message = null) }
         viewModelScope.launch {
-            try { block() } catch (e: Exception) { _state.update { it.copy(error = friendlyError(e)) } }
+            try { block() }
+            catch (_: GetCredentialCancellationException) { /* The account picker was dismissed. */ }
+            catch (e: Exception) { _state.update { it.copy(error = friendlyError(e)) } }
             finally { _state.update { it.copy(busy = false, user = latestFirebaseUser) } }
         }
     }
     fun submit(register: Boolean, name: String, email: String, password: String) = action {
         if (register) repository.signUp(name.trim(), email.trim(), password) else repository.signIn(email.trim(), password)
+    }
+    fun signInWithGoogle(activityContext: Context) = action {
+        repository.signInWithGoogle(googleSignInClient.idToken(activityContext))
     }
     fun reset(email: String) = action {
         repository.resetPassword(email.trim())
@@ -65,10 +75,17 @@ class AuthViewModel(app: Application, private val repository: AuthRepository,
         action { repository.reloadUser(); synchronizeProfile() }
     }
     fun dismiss() { _state.update { it.copy(error = null, message = null) } }
-    fun signOut() {
-        if (_state.value.busy) return
+    fun signOut() = action {
         repository.signOut()
-        _state.value = AuthState(initializing = false)
+        latestFirebaseUser = null
+        _state.update { it.copy(user = null, initializing = false) }
+        try {
+            withTimeout(5000) { googleSignInClient.clearState() }
+        } catch (_: ClearCredentialException) {
+            Log.w("GoogleSignIn", "Credential provider state could not be cleared.")
+        } catch (_: TimeoutCancellationException) {
+            Log.w("GoogleSignIn", "Clearing credential provider state timed out.")
+        }
     }
 }
 

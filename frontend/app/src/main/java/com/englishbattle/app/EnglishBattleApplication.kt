@@ -24,5 +24,8 @@ class AppContainer {
     val clock = ServerClock()
     val catalog: CatalogRepository by lazy { FirebaseCatalogRepository(FirebaseDatabase.getInstance(
         "https://englishbattleapp-8d764-default-rtdb.asia-southeast1.firebasedatabase.app")) }
-    val game: GameRepository by lazy { FirebaseGameRepository(clock) }
+    val game: GameRepository by lazy {
+        FirebaseGameRepository(clock, apiBaseUrl =
+            if (BuildConfig.USE_FUNCTIONS_EMULATOR) null else BuildConfig.MOBILE_API_BASE_URL)
+    }
 }

@@ -81,6 +81,7 @@ class ProfileSyncViewModelTest {
             if (confirmed) pendingEmail?.let { users.value = users.value?.copy(email = it) }
         }
         override suspend fun signIn(email: String, password: String) = error("Unused")
+        override suspend fun signInWithGoogle(idToken: String) = error("Unused")
         override suspend fun signUp(name: String, email: String, password: String) = error("Unused")
         override suspend fun resetPassword(email: String) = error("Unused")
         override fun signOut() { users.value = null }

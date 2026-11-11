@@ -1,6 +1,8 @@
 {
   "name": "functions",
   "scripts": {
+    "start:mobile": "node tools/start-mobile.mjs",
+    "test:mobile": "node --test tools/mobile-api/*.test.mjs",
     "lint": "eslint --ext .js,.ts .",
     "build": "tsc",
     "build:watch": "tsc --watch",

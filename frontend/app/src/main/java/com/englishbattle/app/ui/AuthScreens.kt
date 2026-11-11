@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.unit.*
 import com.englishbattle.app.R
@@ -65,7 +66,8 @@ import com.englishbattle.app.data.PasswordPolicy
 }
 
 @Composable fun AuthScreen(route: Route, state: AuthState, go: (Route) -> Unit, back: () -> Unit,
-    submit: (Boolean, String, String, String) -> Unit, reset: (String) -> Unit, dismiss: () -> Unit) {
+    submit: (Boolean, String, String, String) -> Unit, reset: (String) -> Unit, dismiss: () -> Unit,
+    signInWithGoogle: () -> Unit = {}) {
     var name by rememberSaveable(route) { mutableStateOf("") }
     var email by rememberSaveable(route) { mutableStateOf("") }
     // Passwords are never placed in saved-instance state or preferences.
@@ -78,7 +80,6 @@ import com.englishbattle.app.data.PasswordPolicy
     val register = route == Route.Register
     val passwordInvalid = register && (password.isNotEmpty() || attempted) && !PasswordPolicy.isValid(password)
     val passwordHint = if (register && (password.isEmpty() || passwordInvalid)) PasswordPolicy.MESSAGE else null
-    var googleNotice by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().background(Color.White).verticalScroll(rememberScrollState()).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
         if (!login) TopBar("", { if (!state.busy) { dismiss(); back() } })
@@ -122,9 +123,9 @@ import com.englishbattle.app.data.PasswordPolicy
         }
         if (login) {
             Spacer(Modifier.height(12.dp))
-            OutlinedButton({ googleNotice = true }, Modifier.fillMaxWidth().heightIn(min = 50.dp), enabled = !state.busy,
+            OutlinedButton({ error = null; dismiss(); signInWithGoogle() }, Modifier.fillMaxWidth().heightIn(min = 50.dp), enabled = !state.busy,
                 shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, Line)) {
-                Text("G", color = Color(0xFF4285F4), fontSize = 20.sp)
+                Image(painterResource(R.drawable.google_g), contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(12.dp)); Text("Đăng nhập với Google", color = Ink)
             }
         }
@@ -133,7 +134,4 @@ import com.englishbattle.app.data.PasswordPolicy
             Text(if (login) "Chưa có tài khoản? Đăng ký" else "Quay lại Đăng nhập")
         }
     }
-    if (googleNotice) AlertDialog(onDismissRequest = { googleNotice = false }, title = { Text("Đăng nhập với Google") },
-        text = { Text("Phương thức Google chưa được cấu hình cho bản này. Bạn có thể đăng nhập bằng email và mật khẩu.") },
-        confirmButton = { TextButton({ googleNotice = false }) { Text("Đã hiểu") } })
 }

@@ -20,24 +20,24 @@ $env:JAVA_HOME='C:\Users\Acer\.jdks\jbr-21.0.11'
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`.
 
-### Chạy Android với Functions Emulator khi chưa deploy
+### Chạy Android với API HTTPS
 
-1. Khởi động các dịch vụ local và giữ terminal mở:
+1. Khởi động API và worker từ thư mục gốc dự án, giữ terminal mở:
 
    ```powershell
-   cd "D:\Projects\EnglishBattle-full\frontend\admin-web"
-   npm.cmd run dev:local
+   cd "D:\Projects\EnglishBattle-full"
+   npm.cmd --prefix Backend/functions run start:mobile
    ```
 
-2. Chờ thông báo web đã sẵn sàng. Trong Android Studio, mở project `frontend`, Sync Gradle, chọn bản `debug` và máy ảo Android (ví dụ `Medium Phone`), rồi nhấn Run.
-3. Đăng nhập/đăng ký bằng Firebase thật. App debug tự gọi Functions Emulator ở `10.0.2.2:5001` (địa chỉ máy tính từ máy ảo Android). Authentication và Realtime Database tiếp tục dùng project thật, nên các thao tác nghiệp vụ có thể ghi dữ liệu thật.
+2. Kiểm tra `https://api.twgxeo.win/health` trả `status: ok`. Trong Android Studio, mở project `frontend`, Sync Gradle, chọn bản `debug` và thiết bị rồi nhấn Run.
+3. Debug và release mặc định gọi `https://api.twgxeo.win/api`. Authentication và Realtime Database dùng project thật; các thao tác nghiệp vụ có thể ghi dữ liệu thật. Cloudflare Tunnel cần đang hoạt động và máy chạy API phải có mạng.
 
-Chỉ bản debug cho phép HTTP tới địa chỉ máy tính. Bản release luôn gọi Functions trên cloud. Sau khi deploy, có thể thử cloud bằng bản debug với `./gradlew.bat -PuseFunctionsEmulator=false assembleDebug`; bỏ tham số để trở về Emulator. Cấu hình mặc định này dành cho máy ảo Android; điện thoại thật cần cấu hình kết nối riêng.
+Khi cần phát triển với Functions Emulator, chạy `dev:local` trong `frontend/admin-web` và build debug với `./gradlew.bat -PuseFunctionsEmulator=true assembleDebug`; lúc đó app gọi `10.0.2.2:5001` từ máy ảo Android. Chỉ debug cho phép HTTP loopback này. Có thể đổi HTTPS API bằng Gradle property `mobileApiBaseUrl` khi build. Hướng dẫn đăng nhập Google và chứng chỉ ký APK nằm trong [GOOGLE-SIGN-IN.md](GOOGLE-SIGN-IN.md).
 
 ## Chế độ dữ liệu
 
 - **Firebase thật (mặc định):** đăng ký/đăng nhập email, đặt lại mật khẩu, đổi tên/email và khôi phục phiên. Danh mục đọc `categories`/`topics` published. Cần bật Email/Password và cấp Rules phù hợp. Lỗi dịch vụ được hiển thị, không chuyển sang dữ liệu giả.
-- **Backend:** Các callable Android được export trong `Backend/functions`, chạy trên Functions Emulator khi phát triển. Bản Android mới dùng `learningAttempt` cho luồng làm bài. Deploy callable này lên Firebase trước khi phát hành APK gọi cloud. Thông báo trong app đã hoạt động; thông báo đẩy FCM chưa được triển khai.
+- **Backend:** Các callable Android trong `Backend/functions` được HTTP API tái sử dụng sau khi xác minh Firebase ID token. API và worker chạy trên máy chủ qua Cloudflare Tunnel; không cần deploy Cloud Functions để dùng mô hình này. Luồng làm bài dùng `learningAttempt`. Thông báo trong app đã hoạt động; thông báo đẩy FCM chưa được triển khai.
 
 Tên được đồng bộ từ Auth sang RTDB sau khi lưu; khi mở lại app hoặc có mạng trở lại, app tải lại hồ sơ Auth và gọi `ensureUserProfile` để phục hồi đồng bộ bị gián đoạn. Email mới chỉ được đồng bộ sau khi Firebase Auth đã xác nhận thay đổi. Bước đồng bộ chỉ sửa tên/email và thời điểm cập nhật, giữ dữ liệu nghiệp vụ hiện có.
 

@@ -92,6 +92,9 @@ node_modules/
 /Backend/server/secrets/
 *.pem
 *.key
+*.jks
+*.keystore
+**/keystore.properties
 
 # Android / Gradle generated files
 .gradle/
@@ -101,6 +104,7 @@ local.properties
 **/local.properties
 *.apk
 *.aab
+/frontend/app/release/
 
 # Android Studio local settings
 .idea/workspace.xml

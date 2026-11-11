@@ -13,7 +13,28 @@
           "package_name": "com.englishbattle.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1052524880202-bv63ohlmj5200jd8mrqoc203om8fiqjl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.englishbattle.app",
+            "certificate_hash": "dff5e39b3604479bee03eab1f935a32dce923340"
+          }
+        },
+        {
+          "client_id": "1052524880202-t3tim8c5b0nju3t5vc6kjmeatavc2puj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.englishbattle.app",
+            "certificate_hash": "3a929362de74f44e5ccf877c644fd817d56f4830"
+          }
+        },
+        {
+          "client_id": "1052524880202-hkemq1epqc8ec7vrtpmth24b1b4f93ea.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB3gyvPkUoHNmDI8ZK7kMtE2HI5W5UwG8E"
@@ -21,7 +42,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1052524880202-hkemq1epqc8ec7vrtpmth24b1b4f93ea.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

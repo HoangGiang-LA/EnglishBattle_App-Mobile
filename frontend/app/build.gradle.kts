@@ -1,8 +1,17 @@
+import java.net.URI
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.gms.google-services")
+}
+val mobileApiBaseUrl = providers.gradleProperty("mobileApiBaseUrl")
+    .getOrElse("https://api.twgxeo.win/api").trimEnd('/')
+val mobileApiUri = URI(mobileApiBaseUrl)
+require(mobileApiUri.scheme == "https" && mobileApiUri.host != null &&
+    mobileApiUri.userInfo == null && mobileApiUri.query == null && mobileApiUri.fragment == null) {
+    "mobileApiBaseUrl must be an HTTPS API URL without credentials, query or fragment."
 }
 android {
     namespace = "com.englishbattle.app"
@@ -14,13 +23,14 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "MOBILE_API_BASE_URL", "\"${mobileApiUri.toASCIIString()}\"")
     }
     buildFeatures { compose = true; buildConfig = true }
     buildTypes {
         getByName("debug") {
             buildConfigField("boolean", "USE_FUNCTIONS_EMULATOR",
                 providers.gradleProperty("useFunctionsEmulator")
-                    .map { it.toBooleanStrict().toString() }.getOrElse("true"))
+                    .map { it.toBooleanStrict().toString() }.getOrElse("false"))
         }
         getByName("release") {
             buildConfigField("boolean", "USE_FUNCTIONS_EMULATOR", "false")
@@ -58,6 +68,9 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth")
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("com.google.firebase:firebase-database")
     implementation("com.google.firebase:firebase-functions")
 }

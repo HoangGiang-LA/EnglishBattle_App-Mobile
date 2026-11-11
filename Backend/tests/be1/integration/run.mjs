@@ -19,7 +19,7 @@ async function run(executable, args, capture = false) {
   assert.equal(code, 0, `Acceptance command failed (${code})`);
   return output;
 }
-await run(process.execPath, ['--test', '--test-concurrency=1', ...[
+if (process.env.ENGLISH_BATTLE_ACCEPTANCE_MOBILE_API !== 'true') await run(process.execPath, ['--test', '--test-concurrency=1', ...[
   'reporting.test.mjs', 'community.test.mjs', 'dailyAchievements.test.mjs', 'battle/battle.test.mjs', 'battle/battleEffects.test.mjs',
   'practice/learningMaintenance.test.mjs', 'practice/progressAchievements.test.mjs',
   'practice/attemptCompletion.test.mjs', 'profileContent.test.mjs',

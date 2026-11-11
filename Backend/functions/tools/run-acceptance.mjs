@@ -18,6 +18,7 @@ for (const key of Object.keys(env)) if (key.toLowerCase() === 'path') delete env
 env.PATH = env.JAVA_HOME ? `${join(env.JAVA_HOME, 'bin')}${process.platform === 'win32' ? ';' : ':'}${searchPath}` : searchPath;
 env.FUNCTIONS_EMULATOR_HOST = '127.0.0.1:5002';
 env.ENGLISH_BATTLE_ACCEPTANCE_ANDROID = process.argv.includes('--android') ? 'true' : 'false';
+env.ENGLISH_BATTLE_ACCEPTANCE_MOBILE_API = process.argv.includes('--mobile') ? 'true' : 'false';
 
 async function run(args, cwd = root) {
   const code = await new Promise((resolve, reject) => {

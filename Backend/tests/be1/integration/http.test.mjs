@@ -5,6 +5,7 @@ import {randomUUID} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {test as nodeTest} from 'node:test';
+import {once} from 'node:events';
 import {mobileContract, assertAttemptSemantics} from '../../../../frontend/contracts/mobile.v1.mjs';
 
 // Check every destination before importing Admin SDK or writing any fixture.
@@ -22,7 +23,18 @@ const validators = Object.fromEntries(Object.entries(mobileContract.methods)
   .map(([name, method]) => [name, ajv.compile(method.response)]));
 const seed = JSON.parse(readFileSync(new URL('../../../database/english-battle.seed.json', import.meta.url), 'utf8'));
 const namespace = new URL(adminDb.app.options.databaseURL).hostname.split('.')[0];
-const base = 'http://127.0.0.1:5002/demo-englishbattle-finalization/asia-southeast1';
+let base = 'http://127.0.0.1:5002/demo-englishbattle-finalization/asia-southeast1';
+let mobileServer;
+if (process.env.ENGLISH_BATTLE_ACCEPTANCE_MOBILE_API === 'true') {
+  // Only the isolated test process may supply an emulator Auth verifier.
+  // The production launcher explicitly refuses every emulator setting.
+  const {createMobileApi, mobileHandlers} = await import('../../../functions/tools/mobile-api/http.mjs');
+  mobileServer = createMobileApi({handlers: mobileHandlers(require('./lib/index.js')),
+    verifyToken: (token, checkRevoked) => adminAuth.verifyIdToken(token, checkRevoked)});
+  mobileServer.listen(0, '127.0.0.1');
+  await once(mobileServer, 'listening');
+  base = `http://127.0.0.1:${mobileServer.address().port}/api`;
+}
 const covered = new Set();
 const read = async path => (await adminDb.ref(path).get()).val();
 const test = (name, run) => nodeTest(name, {timeout: 240000}, run);
@@ -308,4 +320,9 @@ try {
   await test('HTTP acceptance exercised every current callable successfully', () => {
     assert.deepEqual([...covered].sort(), Object.keys(mobileContract.methods).sort());
   });
-} finally { await deleteApp(adminDb.app); }
+} finally {
+  if (mobileServer) await new Promise(resolve => {
+    mobileServer.close(resolve); mobileServer.closeAllConnections();
+  });
+  await deleteApp(adminDb.app);
+}
