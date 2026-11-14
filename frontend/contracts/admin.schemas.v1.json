@@ -1220,7 +1220,8 @@
             "users",
             "content",
             "battles",
-            "analytics"
+            "analytics",
+            "notifications"
           ]
         }
       },
@@ -1711,6 +1712,371 @@
         }
       },
       "required": []
+    },
+    "adminCreateCampaignRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "\\S"
+        },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "notification",
+                "coins"
+              ]
+            },
+            "audience": {
+              "type": "string",
+              "enum": [
+                "all",
+                "selected"
+              ]
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "pattern": "\\S"
+            },
+            "body": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "pattern": "\\S"
+            },
+            "destination": {
+              "type": "string",
+              "enum": [
+                "Achievements",
+                "Challenge",
+                "Practice",
+                "Battle",
+                "Leaderboard",
+                "History",
+                "Wallet"
+              ]
+            },
+            "coinAmount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "recipientIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,128}$"
+              },
+              "maxItems": 50,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "kind",
+            "audience",
+            "title",
+            "body",
+            "destination",
+            "coinAmount",
+            "recipientIds"
+          ]
+        }
+      },
+      "required": [
+        "requestId",
+        "reason",
+        "input"
+      ]
+    },
+    "adminCreateCampaignResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "serverNow": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "operationId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+        },
+        "campaign": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "notification",
+                "coins"
+              ]
+            },
+            "audience": {
+              "type": "string",
+              "enum": [
+                "all",
+                "selected"
+              ]
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "pattern": "\\S"
+            },
+            "body": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "pattern": "\\S"
+            },
+            "destination": {
+              "type": "string",
+              "enum": [
+                "Achievements",
+                "Challenge",
+                "Practice",
+                "Battle",
+                "Leaderboard",
+                "History",
+                "Wallet"
+              ]
+            },
+            "coinAmount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            "recipientIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,128}$"
+              },
+              "maxItems": 50,
+              "uniqueItems": true
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,128}$"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "queued",
+                "running",
+                "retrying",
+                "completed",
+                "failed"
+              ]
+            },
+            "createdAt": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "updatedAt": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "processed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "delivered": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "notified": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "errorCode": {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 64
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "audience",
+            "title",
+            "body",
+            "destination",
+            "coinAmount",
+            "status",
+            "createdAt",
+            "updatedAt",
+            "processed",
+            "delivered",
+            "skipped",
+            "notified"
+          ]
+        }
+      },
+      "required": [
+        "serverNow",
+        "operationId",
+        "campaign"
+      ]
+    },
+    "adminListCampaignsRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {},
+      "required": []
+    },
+    "adminListCampaignsResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "serverNow": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "notification",
+                  "coins"
+                ]
+              },
+              "audience": {
+                "type": "string",
+                "enum": [
+                  "all",
+                  "selected"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "pattern": "\\S"
+              },
+              "body": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+                "pattern": "\\S"
+              },
+              "destination": {
+                "type": "string",
+                "enum": [
+                  "Achievements",
+                  "Challenge",
+                  "Practice",
+                  "Battle",
+                  "Leaderboard",
+                  "History",
+                  "Wallet"
+                ]
+              },
+              "coinAmount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000000
+              },
+              "recipientIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,128}$"
+                },
+                "maxItems": 50,
+                "uniqueItems": true
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,128}$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "retrying",
+                  "completed",
+                  "failed"
+                ]
+              },
+              "createdAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "updatedAt": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "processed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "delivered": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "skipped": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "notified": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "errorCode": {
+                "type": "string",
+                "minLength": 0,
+                "maxLength": 64
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "audience",
+              "title",
+              "body",
+              "destination",
+              "coinAmount",
+              "status",
+              "createdAt",
+              "updatedAt",
+              "processed",
+              "delivered",
+              "skipped",
+              "notified"
+            ]
+          },
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "serverNow",
+        "items"
+      ]
     },
     "adminGetProfileRequest": {
       "type": "object",

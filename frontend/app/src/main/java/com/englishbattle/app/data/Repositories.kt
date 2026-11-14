@@ -15,6 +15,7 @@ interface AuthRepository {
 }
 interface CatalogRepository { fun observe(): Flow<Catalog> }
 interface GameRepository {
+    suspend fun setNotificationPreference(enabled: Boolean, accountUid: String) { error("Notification preferences are unavailable") }
     suspend fun dashboard(): Dashboard
     suspend fun statistics(period: String): StudyStatistics
     suspend fun history(kind: String, cursor: String?): HistoryPage

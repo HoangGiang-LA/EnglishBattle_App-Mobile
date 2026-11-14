@@ -36,7 +36,7 @@ export interface GrantRecord {
   ratingDelta?: number;
   ratingBefore?: number;
   ratingAfter?: number;
-  sourceType?: "battle";
+  sourceType?: "battle" | "admin";
 }
 
 export interface UserSettlementModel {

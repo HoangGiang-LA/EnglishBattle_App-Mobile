@@ -160,7 +160,7 @@ async function deleteTestNode(path) {
   );
 
   assert.ok(restoredSettings);
-  assert.equal(restoredSettings.notificationsEnabled, true);
+  assert.equal(restoredSettings.notificationsEnabled, false);
   assert.equal(restoredSettings.language, "vi");
 
   // Dam bao Stats va Wallet van giu nguyen

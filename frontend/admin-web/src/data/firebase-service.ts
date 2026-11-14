@@ -1,6 +1,8 @@
 import type {
   AdminProfile,
   AdminService,
+  Campaign,
+  CampaignInput,
   Activity,
   BattleRecord,
   BattleDetail,
@@ -64,6 +66,8 @@ function describe(error: unknown): Error {
     'overview-stale': 'Thống kê đã quá hạn cập nhật. Kiểm tra worker và thử lại.',
     'search-not-ready': 'Các chỉ mục tìm kiếm đang được chuẩn bị. Thử lại sau ít giây.',
     'notifications-not-ready': 'Thông báo đang được tổng hợp. Thử lại sau khi worker hoàn tất.',
+    'campaign-index-required':
+      'Backend thiếu index Firebase cho Notifications. Cần bổ sung index createdAt và nextRunAt; các đợt đã tiếp nhận vẫn được giữ để xử lý tiếp.',
     'report-too-large': 'Báo cáo vượt giới hạn 5.000 dòng hoặc 1 MiB. Thu hẹp bộ lọc rồi xuất lại.',
     'report-timeout': 'Báo cáo xử lý quá lâu. Thu hẹp bộ lọc rồi xuất lại.',
     'report-expired': 'Báo cáo đã hết hạn hoặc không còn khả dụng. Xuất lại báo cáo.',
@@ -148,6 +152,7 @@ export class FirebaseAdminService implements AdminService {
             'adminArchiveQuestion',
             'adminMarkNotificationsRead',
             'adminExportReport',
+            'adminCreateCampaign',
           ].includes(record.action)
         )
           this.pending.set(record.lane, record)
@@ -616,6 +621,18 @@ export class FirebaseAdminService implements AdminService {
     this.notificationAsOf = Number(result.asOf)
     return { ...result, unreadTotal: Number(result.unreadTotal) }
   }
+  campaigns = async () => (await this.read('adminListCampaigns', {})).items as Campaign[]
+  pendingCampaign = () => {
+    const payload = this.pending.get('adminCreateCampaign:new')?.payload
+    return payload
+      ? (JSON.parse(JSON.stringify({ input: payload.input, reason: payload.reason })) as {
+          input: CampaignInput
+          reason: string
+        })
+      : null
+  }
+  createCampaign = async (input: CampaignInput, reason: string) =>
+    (await this.mutate('adminCreateCampaign', { input, reason }, 'new')).campaign as Campaign
   readNotifications = async (id?: string) => {
     if (!id && !this.notificationAsOf) await this.notifications()
     const prior = this.pending.get('adminMarkNotificationsRead:all')

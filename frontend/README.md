@@ -76,4 +76,6 @@ hiển thị tổng chưa đọc của tài khoản và đánh dấu tất cả;
 
 `data/` chứa model, repository interfaces, Firebase adapter và DTO codec. `ui/UserViewModels.kt` quản lý trạng thái theo nhóm chức năng; `ui/App.kt` điều hướng, lifecycle và phiên người dùng. Các màn hình có loading/rỗng/lỗi/retry và hỗ trợ cuộn, TTS, kích thước chữ lớn.
 
+Cài đặt thông báo dùng Repository và ViewModel riêng: chỉ bật sau khi xác nhận và có quyền Android thực tế, đồng bộ khi quay về từ Cài đặt, ngừng hiển thị ngay khi tắt. Việc tắt cả quyền hệ thống được thực hiện trong Cài đặt Android. Xem [luồng thông báo MVVM và kiểm thử](docs/NOTIFICATION-SETTINGS.md).
+
 Tài khoản và dữ liệu Firebase thật cần được kiểm thử tích hợp trên môi trường staging trước phát hành. App Android không đóng gói ngân hàng câu hỏi hoặc đáp án mẫu; nội dung được tải từ Firebase.

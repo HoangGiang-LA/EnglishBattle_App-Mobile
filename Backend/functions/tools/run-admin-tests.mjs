@@ -62,9 +62,10 @@ await run(['Backend/functions/tools/export-admin-contract.mjs', '--check'])
 await run(['--test', 'Backend/tests/admin/contracts.test.mjs'])
 await run([cli, 'emulators:exec', '--only', 'auth,database,functions', '--project', project,
   '--config', 'firebase.admin-qa.json', '--non-interactive',
-  process.argv.includes('--web') ? 'node Backend/tests/admin/web/run.mjs' : process.argv.includes('--content') ?
+  process.argv.includes('--web') ? 'node Backend/tests/admin/web/run.mjs' : process.argv.includes('--campaigns') ?
+    'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/campaigns.test.mjs' : process.argv.includes('--content') ?
     'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/content.test.mjs' :
     process.argv.includes('--monitoring') ? 'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/monitoring.test.mjs' :
     process.argv.includes('--analytics') ? 'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/analytics.test.mjs' :
     process.argv.includes('--workspace') ? 'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/workspace.test.mjs' :
-    'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/integration.test.mjs Backend/tests/admin/users.test.mjs Backend/tests/admin/content.test.mjs Backend/tests/admin/monitoring.test.mjs Backend/tests/admin/analytics.test.mjs Backend/tests/admin/workspace.test.mjs'])
+    'node --test --test-concurrency=1 --test-timeout=180000 Backend/tests/admin/integration.test.mjs Backend/tests/admin/users.test.mjs Backend/tests/admin/content.test.mjs Backend/tests/admin/monitoring.test.mjs Backend/tests/admin/analytics.test.mjs Backend/tests/admin/workspace.test.mjs Backend/tests/admin/campaigns.test.mjs'])

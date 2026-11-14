@@ -1,11 +1,6 @@
 package com.englishbattle.app.ui
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.*
@@ -104,34 +99,25 @@ import com.englishbattle.app.data.*
     }
 }
 @Composable fun SettingsScreen(user: UserIdentity, preferenceKey: String, busy: Boolean,
-    back: () -> Unit, logout: () -> Unit, changeEmail: (String, String) -> Unit) {
+    back: () -> Unit, logout: () -> Unit, changeEmail: (String, String) -> Unit,
+    notificationState: NotificationSettingsState, toggleNotifications: (Boolean) -> Unit,
+    confirmNotifications: () -> Unit, dismissNotifications: () -> Unit, openNotificationSettings: () -> Unit,
+    retryNotificationSync: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember(preferenceKey) { context.getSharedPreferences(preferenceKey, Context.MODE_PRIVATE) }
-    var notifications by rememberSaveable(preferenceKey) { mutableStateOf(prefs.getBoolean("notifications", true)) }
     var sound by rememberSaveable(preferenceKey) { mutableFloatStateOf(prefs.getFloat("sound", .7f)) }
     var logoutDialog by rememberSaveable { mutableStateOf(false) }
     var emailDialog by rememberSaveable { mutableStateOf(false) }
     var newEmail by rememberSaveable { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var permissionMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var emailError by rememberSaveable { mutableStateOf<String?>(null) }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        permissionMessage = if (granted) "Đã cấp quyền hiển thị thông báo trên thiết bị." else "Chưa được cấp quyền. Bạn có thể bật lại trong Cài đặt Android."
-    }
     var soundDialog by rememberSaveable { mutableStateOf(false) }
     var info by rememberSaveable { mutableStateOf<String?>(null) }
     Screen("Cài đặt", back) {
         Panel {
             SettingRow("Âm thanh", Icons.Outlined.VolumeUp) { soundDialog = true }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconTile(Icons.Outlined.NotificationsNone, Muted, Canvas, 38.dp)
-                Text("Thông báo", Modifier.weight(1f).padding(start = 12.dp), fontWeight = FontWeight.Bold)
-                Switch(notifications, {
-                    notifications = it; prefs.edit().putBoolean("notifications", it).apply()
-                    if (it && Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-                        permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                })
-            }
+            NotificationSetting(notificationState, toggleNotifications, confirmNotifications, dismissNotifications,
+                openNotificationSettings, retryNotificationSync)
             SettingRow("Ngôn ngữ", Icons.Outlined.Translate) { info = "Ngôn ngữ hiện tại: Tiếng Việt. Nội dung bài học: Tiếng Anh." }
             SettingRow("Giao diện", Icons.Outlined.Palette) { info = "Giao diện sáng theo thiết kế English Battle của bạn. Kích thước chữ theo cài đặt Android." }
             SettingRow("Về ứng dụng", Icons.Outlined.Info) { info = "English Battle 1.0.0\nHọc tiếng Anh mỗi ngày.\n\nTài khoản được xác thực bằng Firebase. Kết quả, rating và xu do dịch vụ xác nhận." }
@@ -146,8 +132,8 @@ import com.englishbattle.app.data.*
     if (soundDialog) AlertDialog(onDismissRequest = { soundDialog = false }, title = { Text("Âm thanh") }, text = {
         Column { Text("Âm lượng bài nghe: ${(sound * 100).toInt()}%"); Slider(sound, { sound = it; prefs.edit().putFloat("sound", it).apply() }) }
     }, confirmButton = { TextButton({ soundDialog = false }) { Text("Xong") } })
-    (info ?: permissionMessage)?.let { text -> AlertDialog(onDismissRequest = { info = null; permissionMessage = null }, title = { Text("English Battle") }, text = { Text(text) },
-        confirmButton = { TextButton({ info = null; permissionMessage = null }) { Text("Đã hiểu") } }) }
+    info?.let { text -> AlertDialog(onDismissRequest = { info = null }, title = { Text("English Battle") }, text = { Text(text) },
+        confirmButton = { TextButton({ info = null }) { Text("Đã hiểu") } }) }
     if (logoutDialog) AlertDialog(onDismissRequest = { logoutDialog = false }, title = { Text("Đăng xuất?") },
         text = { Text("Nếu có bài hoặc trận đang dở, đồng hồ vẫn tiếp tục chạy. Đăng xuất không hủy phiên và không làm mới lượt thử thách.") },
         confirmButton = { TextButton({ logoutDialog = false; logout() }, enabled = !busy) { Text("Đăng xuất") } }, dismissButton = { TextButton({ logoutDialog = false }) { Text("Hủy") } })

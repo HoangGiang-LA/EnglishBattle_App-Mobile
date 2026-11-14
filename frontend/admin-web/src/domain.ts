@@ -1,4 +1,25 @@
-export type PageId = 'dashboard' | 'users' | 'content' | 'battles' | 'analytics'
+export type PageId = 'dashboard' | 'users' | 'content' | 'battles' | 'analytics' | 'notifications'
+export interface CampaignInput {
+  kind: 'notification' | 'coins'
+  audience: 'all' | 'selected'
+  title: string
+  body: string
+  destination:
+    'Achievements' | 'Challenge' | 'Practice' | 'Battle' | 'Leaderboard' | 'History' | 'Wallet'
+  coinAmount: number
+  recipientIds: string[]
+}
+export interface Campaign extends CampaignInput {
+  id: string
+  status: 'queued' | 'running' | 'retrying' | 'completed' | 'failed'
+  createdAt: number
+  updatedAt: number
+  processed: number
+  delivered: number
+  skipped: number
+  notified: number
+  errorCode?: string
+}
 export type SkillId = 'vocabulary' | 'grammar' | 'listening' | 'reading'
 export type ContentStatus = 'draft' | 'published' | 'archived'
 export type UserStatus = 'active' | 'banned' | 'deleted'
@@ -130,6 +151,7 @@ export interface AuditEntry {
   errorCode?: string
 }
 export interface DemoState {
+  campaigns?: Campaign[]
   schemaVersion: 1
   profile: AdminProfile
   users: UserRecord[]
@@ -264,6 +286,9 @@ export type ContentInput = {
 
 /** Server adapters must implement these methods with bounded, authorized APIs. */
 export interface AdminService {
+  campaigns(): Promise<Campaign[]>
+  createCampaign(input: CampaignInput, reason: string): Promise<Campaign>
+  pendingCampaign?(): { input: CampaignInput; reason: string } | null
   readonly mode: 'demo' | 'firebase'
   /** Ends this browser workspace; it does not revoke the Firebase account. */
   dispose?(): void

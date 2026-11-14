@@ -1,5 +1,6 @@
 {
   "rules": {
+    "adminCampaigns": {".read": false, ".write": false, ".indexOn": ["createdAt", "nextRunAt"]},
     ".read": false,
     ".write": false,
     "categories": {

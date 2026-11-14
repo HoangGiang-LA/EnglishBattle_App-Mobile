@@ -30,3 +30,5 @@ export const adminListNotifications = callable("adminListNotifications");
 export const adminMarkNotificationsRead = callable("adminMarkNotificationsRead");
 export const adminListAudit = callable("adminListAudit");
 export const adminExportReport = callable("adminExportReport");
+export const adminCreateCampaign = callable("adminCreateCampaign");
+export const adminListCampaigns = callable("adminListCampaigns");

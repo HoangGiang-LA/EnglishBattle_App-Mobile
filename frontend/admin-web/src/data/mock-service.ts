@@ -1,5 +1,7 @@
 import type {
   AdminService,
+  CampaignInput,
+  Campaign,
   ContentInput,
   CsvReport,
   DateRange,
@@ -162,6 +164,48 @@ export class MockAdminService implements AdminService {
     return work
   }
   profile = () => this.read((s) => s.profile)
+  campaigns = () => this.read((s) => (s.campaigns || []).slice(0, 20))
+  createCampaign = (input: CampaignInput, reason: string) =>
+    this.mutate(
+      'adminCreateCampaign',
+      'campaign',
+      (s) => {
+        if (!input.title.trim() || !input.body.trim() || !reason.trim())
+          throw new Error('Complete the title, message and reason.')
+        if (
+          input.kind === 'coins' &&
+          (!Number.isSafeInteger(input.coinAmount) ||
+            input.coinAmount < 1 ||
+            input.coinAmount > 1000000)
+        )
+          throw new Error('Enter a whole coin amount between 1 and 1,000,000.')
+        if (
+          input.audience === 'selected' &&
+          (!input.recipientIds.length || input.recipientIds.length > 50)
+        )
+          throw new Error('Select between 1 and 50 accounts.')
+        const recipients = s.users.filter(
+          (u) =>
+            u.status === 'active' &&
+            (input.audience === 'all' || input.recipientIds.includes(u.id)),
+        )
+        if (input.kind === 'coins') for (const user of recipients) user.coins += input.coinAmount
+        const campaign: Campaign = {
+          ...input,
+          id: crypto.randomUUID(),
+          status: 'completed',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          processed: recipients.length,
+          delivered: recipients.length,
+          skipped: 0,
+          notified: recipients.length,
+        }
+        s.campaigns = [campaign, ...(s.campaigns || [])]
+        return campaign
+      },
+      reason,
+    )
   saveProfile = (name: string) =>
     this.mutate('profile.update', 'demo-admin', (s) => {
       if (name.trim().length < 2 || name.length > 80)

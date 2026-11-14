@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "revision": "2026-11-07-workspace",
-  "implementation": "All 21 admin business callables implemented; daily/private battle modes remain deferred",
-  "implementedCallables": ["adminGetProfile", "adminUpdateProfile", "adminListUsers", "adminGetUser", "adminSaveUser", "adminSetUserStatus", "adminGetCatalog", "adminSaveContent", "adminListQuestions", "adminGetQuestion", "adminSaveQuestion", "adminArchiveQuestion", "adminListBattles", "adminGetBattle", "adminListActivities", "adminGetOverview", "adminSearch", "adminListNotifications", "adminMarkNotificationsRead", "adminListAudit", "adminExportReport"],
+  "revision": "2026-11-14-campaigns",
+  "implementation": "23 admin business callables; notification and coin campaigns run through the local worker",
+  "implementedCallables": ["adminGetProfile", "adminUpdateProfile", "adminListUsers", "adminGetUser", "adminSaveUser", "adminSetUserStatus", "adminGetCatalog", "adminSaveContent", "adminListQuestions", "adminGetQuestion", "adminSaveQuestion", "adminArchiveQuestion", "adminListBattles", "adminGetBattle", "adminListActivities", "adminGetOverview", "adminSearch", "adminListNotifications", "adminMarkNotificationsRead", "adminListAudit", "adminExportReport", "adminCreateCampaign", "adminListCampaigns"],
   "schemas": "admin.schemas.v1.json",
   "schemaReference": "For callable X, use #/$defs/XRequest and #/$defs/XResponse in schemas",
   "runtimeSource": "../../Backend/functions/src/admin/contracts.ts",
@@ -12,6 +12,8 @@
   "timestampUnit": "epoch_milliseconds",
   "responseEnvelope": ["serverNow", "payloadKey"],
   "methods": {
+    "campaigns": {"callable": "adminListCampaigns", "request": [], "payloadKey": "items"},
+    "createCampaign": {"callable": "adminCreateCampaign", "request": ["input", "reason", "requestId"], "payloadKey": "campaign"},
     "profile": {"callable": "adminGetProfile", "request": [], "payloadKey": "profile"},
     "saveProfile": {"callable": "adminUpdateProfile", "request": ["name", "expectedRevision", "requestId", "reason?"], "payloadKey": "profile"},
     "overview": {"callable": "adminGetOverview", "request": ["range", "categoryId?", "granularity?"], "payloadKey": "overview"},

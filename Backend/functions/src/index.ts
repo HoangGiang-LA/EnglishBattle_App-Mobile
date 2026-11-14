@@ -34,6 +34,7 @@ setGlobalOptions({maxInstances: 10});
 export {ensureUserProfile} from "./be1/auth/ensureUserProfile";
 export {getUserDashboard} from "./be1/user/getUserDashboard";
 export {markNotificationsRead} from "./be1/user/markNotificationsRead";
+export {setNotificationPreference} from "./be1/user/setNotificationPreference";
 export {getLeaderboard} from "./be1/community/getLeaderboard";
 export {getNotifications} from "./be1/community/getNotifications";
 export {maintainCommunity} from "./be1/community/communityMaintenance";

@@ -1,5 +1,6 @@
 {
   "rules": {
+    "adminCampaigns": {".indexOn": ["createdAt", "nextRunAt"]},
     ".read": false,
     ".write": false,
     "adminOperations": {".indexOn": ["dueAt", "cleanupAt"]},

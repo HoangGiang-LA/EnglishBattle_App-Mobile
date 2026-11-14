@@ -36,7 +36,8 @@ function sourceNotice(kind: string, row: Data): Notice | null {
     if (!["succeeded", "failed", "blocked"].includes(String(row.result))) {
       throw new HttpsError("failed-precondition", "Invalid audit notification source.");
     }
-    const page = /Question|Content/.test(action) ? "content" : action === "adminExportReport" ? "analytics" : "users";
+    const page = action === "adminCreateCampaign" ? "notifications" :
+      /Question|Content/.test(action) ? "content" : action === "adminExportReport" ? "analytics" : "users";
     return {id: `notice_${adminKey("audit", row.id)}`, at, page,
       title: row.result === "blocked" ? "Admin operation needs review" :
         row.result === "failed" ? "Admin operation rejected" : "Admin change recorded",

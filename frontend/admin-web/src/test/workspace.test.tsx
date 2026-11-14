@@ -41,7 +41,7 @@ describe('Admin workspace frontend', () => {
     expect(screen.getAllByText(adminSession.name).length).toBeGreaterThan(0)
     expect(
       within(screen.getByRole('navigation', { name: 'Main navigation' })).getAllByRole('link'),
-    ).toHaveLength(5)
+    ).toHaveLength(6)
     await user.click(screen.getByRole('button', { name: 'English Battle' }))
     await user.click(screen.getByRole('button', { name: 'Sign out' }))
     await screen.findByRole('heading', { name: 'Welcome back' })

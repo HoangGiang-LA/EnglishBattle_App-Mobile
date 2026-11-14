@@ -214,6 +214,9 @@ class FirebaseGameRepository(private val clock: ServerClock,
         WireCodec.attempt(response.getJSONObject("attempt")), ::historyDetail
     )
     override suspend fun ensureProfile() { call("ensureUserProfile") }
+    override suspend fun setNotificationPreference(enabled: Boolean, accountUid: String) {
+        call("setNotificationPreference", mapOf("enabled" to enabled, "accountUid" to accountUid))
+    }
     override suspend fun dashboard() = WireCodec.dashboard(call("getUserDashboard").getJSONObject("dashboard"))
     override suspend fun statistics(period: String) = WireCodec.statistics(call("getStudyStatistics", mapOf("period" to period)).getJSONObject("statistics"))
     override suspend fun history(kind: String, cursor: String?) = WireCodec.historyPage(call("getHistory", mapOf("kind" to kind, "cursor" to cursor)).getJSONObject("page"))

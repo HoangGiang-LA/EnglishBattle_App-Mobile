@@ -23,6 +23,9 @@ export const overview = {totalUsers: 2, newUsers: 1, activeUsers: 2, completedBa
     accountScope: 'retained-auth', completionBasis: 'started-in-period'}}
 const write = {requestId: 'request_1'}
 export const requests = {
+  adminListCampaigns: {},
+  adminCreateCampaign: {...write, reason: 'Learning gift', input: {kind: 'coins', audience: 'selected', title: 'A gift',
+    body: 'Thanks for learning.', destination: 'Wallet', coinAmount: 10, recipientIds: ['user_1']}},
   adminGetProfile: {},
   adminUpdateProfile: {...write, name: 'Updated name', expectedRevision: 0},
   adminGetOverview: {range},
@@ -51,6 +54,9 @@ const written = data => envelope({operationId: 'operation_1', ...data})
 export const paged = items => ({items, total: items.length, page: 1, pageSize: 10,
   snapshotId: 'snapshot_1', expiresAt: 9999999999999, nextCursor: null})
 export const responses = {
+  adminListCampaigns: envelope({items: []}),
+  adminCreateCampaign: written({campaign: {...requests.adminCreateCampaign.input, id: 'campaign_1',
+    status: 'queued', createdAt: 1, updatedAt: 1, processed: 0, delivered: 0, skipped: 0, notified: 0}}),
   adminGetProfile: envelope({profile}), adminUpdateProfile: written({profile}),
   adminGetOverview: envelope({overview}), adminListUsers: envelope({page: paged([user])}),
   adminGetUser: envelope({user}), adminSaveUser: written({user}), adminSetUserStatus: written({}),

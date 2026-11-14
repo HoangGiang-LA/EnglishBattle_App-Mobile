@@ -46,6 +46,9 @@ const Analytics = lazy(() => import('./pages/Overview').then((m) => ({ default: 
 const UsersPage = lazy(() => import('./pages/Users').then((m) => ({ default: m.UsersPage })))
 const ContentPage = lazy(() => import('./pages/Content').then((m) => ({ default: m.ContentPage })))
 const BattlesPage = lazy(() => import('./pages/Battles').then((m) => ({ default: m.BattlesPage })))
+const NotificationsPage = lazy(() =>
+  import('./pages/Notifications').then((m) => ({ default: m.NotificationsPage })),
+)
 
 const navigation = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -53,6 +56,7 @@ const navigation = [
   { id: 'content', label: 'Content', icon: BookOpen },
   { id: 'battles', label: 'Battles', icon: Swords },
   { id: 'analytics', label: 'Analytics', icon: ChartNoAxesCombined },
+  { id: 'notifications', label: 'Notifications', icon: Bell },
 ]
 function Login({ auth }: { auth: AdminAuthController }) {
   return (
@@ -647,6 +651,8 @@ function AdminWorkspace({
                 />
               ) : page === 'analytics' ? (
                 <Analytics />
+              ) : page === 'notifications' ? (
+                <NotificationsPage />
               ) : (
                 <Empty
                   title="Page not found"

@@ -27,7 +27,7 @@ export async function provisionUserProfile(uid: string, allowProvisioning = fals
   }
   await createUserDefault(`users/${uid}`, {
     displayCode: `EB-${uid}`, displayName: user.displayName || "New Player",
-    avatarPath: "", createdAt, updatedAt: now, revision: 0,
+    avatarPath: "", createdAt, provisionedAt: now, updatedAt: now, revision: 0,
   });
   await createUserDefault(`userPrivate/${uid}`, {email: user.email || "", createdAt, updatedAt: now, revision: 0});
   await createUserDefault(`userStats/${uid}`, {
@@ -35,7 +35,7 @@ export async function provisionUserProfile(uid: string, allowProvisioning = fals
   });
   await createUserDefault(`wallets/${uid}`, {coinBalance: 0, updatedAt: now});
   await createUserDefault(`userSettings/${uid}`, {
-    notificationsEnabled: true, soundVolume: 1, language: "vi", theme: "system", updatedAt: now,
+    notificationsEnabled: false, soundVolume: 1, language: "vi", theme: "system", updatedAt: now,
   });
   await syncUserIdentity(uid);
   if (!allowed((await accessRef.get()).val()?.status) || (await adminAuth.getUser(uid)).disabled) {

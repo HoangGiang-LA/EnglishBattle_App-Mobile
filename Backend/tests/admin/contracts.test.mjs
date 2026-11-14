@@ -29,8 +29,8 @@ test('workspace schemas enforce search bounds, actor-private read intents and tw
   void columns
 })
 
-test('exactly 21 mapped callable request/response schemas accept representative DTOs', () => {
-  assert.equal(adminActions.length, 21)
+test('exactly 23 mapped callable request/response schemas accept representative DTOs', () => {
+  assert.equal(adminActions.length, 23)
   assert.deepEqual([...adminActions].sort(), Object.values(contract.methods).filter(m => m.callable).map(m => m.callable).sort())
   assert.deepEqual(Object.keys(requests).sort(), [...adminActions].sort())
   assert.deepEqual(Object.keys(responses).sort(), [...adminActions].sort())

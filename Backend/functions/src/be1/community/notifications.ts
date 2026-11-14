@@ -178,6 +178,23 @@ export const publishNotification = async (
   if (item) await recordNotification(uid, item, integer(stored.readAt));
 };
 
+// Consent and insertion share one mailbox transaction.
+export const publishSubscribedNotification = async (
+  uid: string, id: string, value: Record<string, unknown>,
+): Promise<boolean> => {
+  if (!notificationView(id, value)) throw new Error("Invalid notification.");
+  const tx = await transactionWithRetry(adminDb.ref(`notifications/${uid}`),
+    (current) => {
+      if (current?.[id] || current?._settings?.enabled !== true) return current;
+      return {...current, [id]: value};
+    });
+  const stored = tx.snapshot.val()?.[id];
+  const item = notificationView(id, stored);
+  if (!item) return false;
+  await recordNotification(uid, item, integer(stored.readAt));
+  return true;
+};
+
 export const readNotification = async (uid: string, id: string) => {
   const stored = (
     await adminDb.ref(`notifications/${uid}/${id}`).get()

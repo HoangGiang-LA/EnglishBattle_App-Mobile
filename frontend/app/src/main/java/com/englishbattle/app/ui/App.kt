@@ -16,10 +16,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.englishbattle.app.data.*
+import com.englishbattle.app.EnglishBattleApplication
 
 enum class Route { Splash, Login, Register, Forgot, Home, Challenge, Practice, Vocabulary, Grammar,
     Listening, Reading, Quiz, PracticeResult, Battle, Matching, BattleQuiz, BattleResult, History,
@@ -107,14 +111,18 @@ enum class Route { Splash, Login, Register, Forgot, Home, Challenge, Practice, V
     var enterRequested by rememberSaveable { mutableStateOf(false) }
     val preferenceKey = "english_battle_settings_FIREBASE_${user.uid}"
     val context = LocalContext.current
-    val notificationPrefs = remember(preferenceKey) { context.getSharedPreferences(preferenceKey, android.content.Context.MODE_PRIVATE) }
+    val notificationFactory = remember(preferenceKey) { viewModelFactory {
+        initializer { NotificationSettingsViewModel(AndroidNotificationSettingsRepository(context, preferenceKey,
+            { enabled -> (context.applicationContext as EnglishBattleApplication).container.game
+                .setNotificationPreference(enabled, user.uid) }), createSavedStateHandle()) }
+    } }
+    val notificationSettings: NotificationSettingsViewModel = viewModel(key = preferenceKey, factory = notificationFactory)
+    val notificationState by notificationSettings.state.collectAsStateWithLifecycle()
+    NotificationSettingsEffects(notificationSettings, notificationState)
     val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(dashboard.data?.notifications) {
-        val latest = dashboard.data?.notifications?.filter { !it.read }?.maxByOrNull { it.createdAt }
-        if (latest != null && latest.createdAt > notificationPrefs.getLong("last-notification", 0)) {
-            notificationPrefs.edit().putLong("last-notification", latest.createdAt).apply()
-            if (notificationPrefs.getBoolean("notifications", true)) snackbar.showSnackbar(latest.title)
-        }
+    LaunchedEffect(dashboard.data?.notifications, notificationState.enabled) {
+        if (!notificationState.enabled) snackbar.currentSnackbarData?.dismiss()
+        notificationSettings.consumeLatestNotification(dashboard.data?.notifications.orEmpty())?.let { snackbar.showSnackbar(it) }
     }
     fun go(to: Route) { stack = stack + to.name }
     fun root(to: Route) { stack = listOf(to.name) }
@@ -188,7 +196,11 @@ enum class Route { Splash, Login, Register, Forgot, Home, Challenge, Practice, V
                     val target = runCatching { Route.valueOf(destination) }.getOrDefault(Route.Notifications)
                     if (target in listOf(Route.Achievements, Route.Challenge, Route.Practice, Route.Battle, Route.Leaderboard, Route.History, Route.Wallet)) go(target)
                 }
-                Route.Settings -> SettingsScreen(user, preferenceKey, authState.busy, ::back, authVM::signOut, authVM::changeEmail)
+                Route.Settings -> SettingsScreen(user, preferenceKey, authState.busy, ::back, authVM::signOut, authVM::changeEmail,
+                    notificationState, notificationSettings::setEnabled,
+                    { notificationSettings.confirmEnable(context.canShowNotificationPermissionRationale()) },
+                    notificationSettings::dismissConfirmation, notificationSettings::openSystemSettings,
+                    notificationSettings::synchronizePreference)
                 else -> HomeScreen(user.name, dashboard, attempt.data, play.activeId != null, ticket.data != null, ::go, { resume() }, dataVM::refresh)
             }
         }

@@ -9,7 +9,7 @@ export const {HttpsError} = require('firebase-functions/v2/https')
 // Only the authenticated Android surface is published. In particular, never
 // dispatch arbitrary exports, administrator endpoints or maintenance jobs.
 export const mobileMethods = Object.freeze([
-  'ensureUserProfile', 'getUserDashboard', 'markNotificationsRead',
+  'ensureUserProfile', 'getUserDashboard', 'markNotificationsRead', 'setNotificationPreference',
   'getLeaderboard', 'getNotifications', 'getStudyStatistics', 'getHistory',
   'getCoinLedger', 'learningAttempt', 'startAttempt', 'resumeAttempt',
   'submitAttemptAnswer', 'advanceAttempt', 'saveAttemptSelection',

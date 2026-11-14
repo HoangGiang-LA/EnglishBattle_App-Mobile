@@ -1,6 +1,6 @@
 # English Battle — Web admin
 
-Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. **Đủ 21 callable admin** phục vụ 5 trang, tìm kiếm, thông báo, audit và export; không fallback sang dữ liệu mẫu.
+Frontend quản trị React + TypeScript + Vite, chạy độc lập với Gradle/Android. Đăng nhập bằng Firebase Auth, provision qua Callable BE1 `ensureUserProfile`, sau đó xác nhận quyền qua HTTP `getAdminSession`. **23 callable admin** phục vụ 6 trang, tìm kiếm, thông báo, quà xu, audit và export; không fallback sang dữ liệu mẫu.
 
 ## Chạy trên máy của bạn
 
@@ -41,9 +41,11 @@ Giao diện dùng tiếng Anh như 5 ảnh thiết kế. Font Inter và icon đ�
 
 ## Chế độ thật hiện có
 
+- Notifications: gửi thông báo vào hộp thư Android hoặc tặng xu cho toàn bộ tài khoản active/nhóm được chọn; xem lại trước khi gửi, theo dõi tiến độ và retry cùng requestId. Chỉ tài khoản đã đồng bộ bật thông báo nhận tin; tài khoản tắt vẫn nhận xu nếu được tặng. Cần APK mới và khởi động lại API/worker. Xem [gửi thông báo và tặng xu](../../Backend/functions/ADMIN-CAMPAIGNS.md).
+
 - Profile: đọc tên/email Auth, sửa tên với revision; không đổi quyền hoặc email đăng nhập của chính mình qua form này.
 - Users: tìm tên/email/UID/mã, phân trang 10/20/50 bằng snapshot server, tạo/mời, sửa, khóa/mở khóa và xóa mềm có lý do.
-- Rating/xu chỉ đọc. Không cấp custom claim từ web. Chặn tự ban/delete và bảo vệ admin cuối cùng cùng công cụ server.
+- Rating và số dư trong trang Users chỉ đọc; tặng xu qua trang Notifications có grant và audit riêng. Không cấp custom claim từ web. Chặn tự ban/delete và bảo vệ admin cuối cùng cùng công cụ server.
 - Lưu requestId/payload theo UID trong sessionStorage trước khi gửi; khôi phục phiên thử lại đúng intent cũ để xác minh sau timeout/reload. Lỗi giữ dữ liệu form, version conflict yêu cầu đọc lại.
 - User đang có operation dở chỉ được xem. Deleted ẩn danh, giữ kết quả/grant/ledger hợp lệ. Không có nút reset dữ liệu thật.
 - Content: quản lý 4 kỹ năng, topic/lesson có revision; câu hỏi có expectedVersion, tạo version bất biến và archive. Listening thật chỉ dùng TTS, lesson là bắt buộc; UI ẩn URL/upload.

@@ -25,7 +25,7 @@ const userStatus = enumeration("active", "banned", "deleted");
 const difficulty = enumeration("easy", "medium", "hard");
 const battleStatus = enumeration("ongoing", "completed", "abandoned");
 const mode = enumeration("quick", "daily", "private");
-const pageId = enumeration("dashboard", "users", "content", "battles", "analytics");
+const pageId = enumeration("dashboard", "users", "content", "battles", "analytics", "notifications");
 const email = {...text(254, 3), pattern: "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"};
 const nullableNumber = {anyOf: [{type: "number"}, {type: "null"}]};
 const nullableRatio = {anyOf: [{type: "number", minimum: 0, maximum: 100}, {type: "null"}]};
@@ -184,7 +184,26 @@ const envelope = (payloadKey?: string, payload?: Schema, write = false) => objec
 const request = (fields: Schema, required = Object.keys(fields)) => object(fields, required);
 const writeFields = {requestId: id, reason};
 
+const campaignInput = object({
+  kind: enumeration("notification", "coins"), audience: enumeration("all", "selected"),
+  title: nonempty(120), body: nonempty(2000),
+  destination: enumeration("Achievements", "Challenge", "Practice", "Battle", "Leaderboard", "History", "Wallet"),
+  coinAmount: {...integer(), maximum: 1000000},
+  recipientIds: {...array(id, 50), uniqueItems: true},
+});
+const campaign = object({...campaignInput.properties, id,
+  status: enumeration("queued", "running", "retrying", "completed", "failed"),
+  createdAt: integer(), updatedAt: integer(), processed: integer(),
+  delivered: integer(), skipped: integer(), notified: integer(),
+  errorCode: text(64),
+}, ["id", "kind", "audience", "title", "body", "destination", "coinAmount", "status", "createdAt", "updatedAt",
+  "processed", "delivered", "skipped", "notified"]);
+
 export const adminContracts = {
+  adminCreateCampaign: {
+    request: request({...writeFields, input: campaignInput}), response: envelope("campaign", campaign, true), operation: true,
+  },
+  adminListCampaigns: {request: request({}), response: envelope("items", array(campaign, 20))},
   adminGetProfile: {request: request({}), response: envelope("profile", ref("profile"))},
   adminUpdateProfile: {
     request: request({...writeFields, name: nonempty(100), expectedRevision: revision},
@@ -284,6 +303,14 @@ export function validateAdminRequest(action: AdminAction, value: unknown): Data 
     throw new HttpsError("invalid-argument", "Invalid admin request.", {reason: "invalid-request"});
   }
   const data = value as Data;
+  if (action === "adminCreateCampaign") {
+    const input = data.input as Data;
+    if ((input.audience === "all" && (input.recipientIds as string[]).length !== 0) ||
+        (input.audience === "selected" && (input.recipientIds as string[]).length === 0) ||
+        (input.kind === "coins" ? Number(input.coinAmount) < 1 || input.destination !== "Wallet" : input.coinAmount !== 0)) {
+      throw new HttpsError("invalid-argument", "Select recipients and a valid coin amount.");
+    }
+  }
   if (action === "adminSaveUser" && data.resendInvitation && !data.id) {
     throw new HttpsError("invalid-argument", "Resend requires an existing user.");
   }
